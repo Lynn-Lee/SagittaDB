@@ -15,7 +15,9 @@ from app.main import app
 from app.models.base import Base
 
 # 测试数据库（使用独立的 test DB，避免污染开发数据）
-TEST_DATABASE_URL = settings.DATABASE_URL.replace("/archery", "/archery_test")
+# 只替换 URL 最后一段（数据库名），避免误替换用户名部分
+_db_url_base, _, _ = settings.DATABASE_URL.rpartition("/")
+TEST_DATABASE_URL = f"{_db_url_base}/archery_test"
 
 
 @pytest.fixture(scope="session")
