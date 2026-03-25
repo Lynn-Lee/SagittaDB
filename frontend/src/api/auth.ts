@@ -24,6 +24,9 @@ export const authApi = {
   me: () =>
     apiClient.get('/auth/me/').then(r => r.data),
 
+  ldapLogin: (username: string, password: string) =>
+    apiClient.post<TokenResp>('/auth/ldap/', { username, password }).then(r => r.data),
+
   changePassword: (old_password: string, new_password: string) =>
     apiClient.post('/auth/password/change/', { old_password, new_password }).then(r => r.data),
 

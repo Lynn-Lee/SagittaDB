@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Button, Form, Input, Alert, Divider, Tooltip } from 'antd'
+import { Button, Form, Input, Alert, Divider, Tooltip, Tag } from 'antd'
 import {
-  UserOutlined, LockOutlined, EyeInvisibleOutlined, EyeTwoTone,
+  UserOutlined, LockOutlined, EyeInvisibleOutlined, EyeTwoTone, ArrowLeftOutlined,
 } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import apiClient from '@/api/client'
+import { authApi } from '@/api/auth'
 
 // ── SagittaDB Logo ────────────────────────────────────────────
 const SagittaLogo = () => (
@@ -53,9 +54,23 @@ const OAuthBtn = ({
 // ── 主组件 ────────────────────────────────────────────────────
 export default function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { setTokens, setUser } = useAuthStore()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const method = searchParams.get('method')
+  const isLdap = method === 'ldap'
+
+  const _doLogin = async (tokenData: { access_token: string; refresh_token: string }) => {
+    const { access_token, refresh_token } = tokenData
+    const meRes = await apiClient.get('/auth/me/', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+    setTokens(access_token, refresh_token)
+    setUser(meRes.data)
+    navigate('/dashboard', { replace: true })
+  }
 
   const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true)
@@ -65,13 +80,7 @@ export default function LoginPage() {
         username: values.username,
         password: values.password,
       })
-      const { access_token, refresh_token } = tokenRes.data
-      const meRes = await apiClient.get('/auth/me/', {
-        headers: { Authorization: `Bearer ${access_token}` },
-      })
-      setTokens(access_token, refresh_token)
-      setUser(meRes.data)
-      navigate('/dashboard', { replace: true })
+      await _doLogin(tokenRes.data)
     } catch (e: any) {
       setError(e.response?.data?.detail || '用户名或密码错误')
     } finally {
@@ -79,10 +88,26 @@ export default function LoginPage() {
     }
   }
 
+  const handleLdapLogin = async (values: { username: string; password: string }) => {
+    setLoading(true)
+    setError('')
+    try {
+      const tokenData = await authApi.ldapLogin(values.username, values.password)
+      await _doLogin(tokenData)
+    } catch (e: any) {
+      setError(e.response?.data?.detail || 'LDAP 认证失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleOAuth = (type: string) => {
-    // 跳转到对应 OAuth 入口（后续接入时替换为真实 URL）
+    if (type === 'ldap') {
+      setSearchParams({ method: 'ldap' })
+      return
+    }
+    // 其他第三方登录（待实现）
     const routes: Record<string, string> = {
-      ldap:    '/login?method=ldap',
       oidc:    '/login?method=oidc',
       dingtalk:'/login?method=dingtalk',
       feishu:  '/login?method=feishu',
@@ -135,7 +160,6 @@ export default function LoginPage() {
 
         {/* ── Logo 区域 ── */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          {/* Logo 图标 */}
           <div style={{
             display: 'inline-block',
             filter: 'drop-shadow(0 0 28px rgba(22,93,255,0.45))',
@@ -143,8 +167,6 @@ export default function LoginPage() {
           }}>
             <SagittaLogo />
           </div>
-
-          {/* 品牌名 */}
           <div style={{
             fontFamily: "'Inter', sans-serif",
             fontWeight: 800,
@@ -155,8 +177,6 @@ export default function LoginPage() {
           }}>
             SagittaDB
           </div>
-
-          {/* 中文副标题 — 紧贴品牌名居中 */}
           <div style={{
             fontFamily: "'Noto Sans SC', sans-serif",
             fontWeight: 500,
@@ -168,8 +188,6 @@ export default function LoginPage() {
           }}>
             矢 准 数 据
           </div>
-
-          {/* Slogan */}
           <div style={{
             fontFamily: "'Inter', sans-serif",
             fontWeight: 300,
@@ -192,71 +210,133 @@ export default function LoginPage() {
             }} />
         )}
 
-        {/* ── 登录表单 ── */}
-        <Form onFinish={handleLogin} size="large" layout="vertical">
-          <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}
-            style={{ marginBottom: 14 }}>
-            <Input
-              prefix={<UserOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />}
-              placeholder="用户名"
-              style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 8, color: '#FFFFFF', height: 46,
-              }}
-            />
-          </Form.Item>
-          <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}
-            style={{ marginBottom: 22 }}>
-            <Input.Password
-              prefix={<LockOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />}
-              placeholder="密码"
-              iconRender={v => v
-                ? <EyeTwoTone twoToneColor="#165DFF" />
-                : <EyeInvisibleOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />
-              }
-              style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 8, color: '#FFFFFF', height: 46,
-              }}
-            />
-          </Form.Item>
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Button
-              type="primary" htmlType="submit" loading={loading} block
-              style={{
-                height: 46, borderRadius: 8,
-                background: '#165DFF', border: 'none',
-                fontWeight: 600, fontSize: 15,
-                letterSpacing: '1px',
-                boxShadow: '0 4px 20px rgba(22,93,255,0.4)',
-              }}
-            >
-              登 录
-            </Button>
-          </Form.Item>
-        </Form>
+        {isLdap ? (
+          /* ── LDAP 登录表单 ── */
+          <>
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Button
+                type="text" size="small" icon={<ArrowLeftOutlined />}
+                style={{ color: 'rgba(255,255,255,0.45)', padding: 0 }}
+                onClick={() => { setSearchParams({}); setError('') }}
+              >
+                返回
+              </Button>
+              <Tag color="blue" style={{ borderRadius: 4, fontSize: 11 }}>🏢 LDAP 认证</Tag>
+            </div>
+            <Form onFinish={handleLdapLogin} size="large" layout="vertical">
+              <Form.Item name="username" rules={[{ required: true, message: '请输入 LDAP 用户名' }]}
+                style={{ marginBottom: 14 }}>
+                <Input
+                  prefix={<UserOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />}
+                  placeholder="LDAP 用户名"
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 8, color: '#FFFFFF', height: 46,
+                  }}
+                />
+              </Form.Item>
+              <Form.Item name="password" rules={[{ required: true, message: '请输入 LDAP 密码' }]}
+                style={{ marginBottom: 22 }}>
+                <Input.Password
+                  prefix={<LockOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />}
+                  placeholder="LDAP 密码"
+                  iconRender={v => v
+                    ? <EyeTwoTone twoToneColor="#165DFF" />
+                    : <EyeInvisibleOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />
+                  }
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 8, color: '#FFFFFF', height: 46,
+                  }}
+                />
+              </Form.Item>
+              <Form.Item style={{ marginBottom: 0 }}>
+                <Button
+                  type="primary" htmlType="submit" loading={loading} block
+                  style={{
+                    height: 46, borderRadius: 8,
+                    background: '#60A5FA', border: 'none',
+                    fontWeight: 600, fontSize: 15,
+                    letterSpacing: '1px',
+                    boxShadow: '0 4px 20px rgba(96,165,250,0.4)',
+                  }}
+                >
+                  LDAP 登 录
+                </Button>
+              </Form.Item>
+            </Form>
+          </>
+        ) : (
+          /* ── 本地登录表单 ── */
+          <>
+            <Form onFinish={handleLogin} size="large" layout="vertical">
+              <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}
+                style={{ marginBottom: 14 }}>
+                <Input
+                  prefix={<UserOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />}
+                  placeholder="用户名"
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 8, color: '#FFFFFF', height: 46,
+                  }}
+                />
+              </Form.Item>
+              <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}
+                style={{ marginBottom: 22 }}>
+                <Input.Password
+                  prefix={<LockOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />}
+                  placeholder="密码"
+                  iconRender={v => v
+                    ? <EyeTwoTone twoToneColor="#165DFF" />
+                    : <EyeInvisibleOutlined style={{ color: 'rgba(255,255,255,0.3)' }} />
+                  }
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 8, color: '#FFFFFF', height: 46,
+                  }}
+                />
+              </Form.Item>
+              <Form.Item style={{ marginBottom: 0 }}>
+                <Button
+                  type="primary" htmlType="submit" loading={loading} block
+                  style={{
+                    height: 46, borderRadius: 8,
+                    background: '#165DFF', border: 'none',
+                    fontWeight: 600, fontSize: 15,
+                    letterSpacing: '1px',
+                    boxShadow: '0 4px 20px rgba(22,93,255,0.4)',
+                  }}
+                >
+                  登 录
+                </Button>
+              </Form.Item>
+            </Form>
 
-        {/* ── 第三方登录 ── */}
-        <Divider style={{
-          borderColor: 'rgba(255,255,255,0.08)',
-          color: 'rgba(255,255,255,0.25)',
-          fontSize: 11,
-          fontFamily: "'JetBrains Mono', monospace",
-          letterSpacing: '1px',
-          margin: '20px 0 16px',
-        }}>
-          其他登录方式
-        </Divider>
+            {/* ── 第三方登录 ── */}
+            <Divider style={{
+              borderColor: 'rgba(255,255,255,0.08)',
+              color: 'rgba(255,255,255,0.25)',
+              fontSize: 11,
+              fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: '1px',
+              margin: '20px 0 16px',
+            }}>
+              其他登录方式
+            </Divider>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <OAuthBtn icon="🏢" label="LDAP"    color="#60A5FA" onClick={() => handleOAuth('ldap')} />
-          <OAuthBtn icon="🔑" label="OIDC"    color="#A78BFA" onClick={() => handleOAuth('oidc')} />
-          <OAuthBtn icon="🔔" label="钉钉"    color="#1677FF" onClick={() => handleOAuth('dingtalk')} />
-          <OAuthBtn icon="🦅" label="飞书"    color="#00B42A" onClick={() => handleOAuth('feishu')} />
-          <OAuthBtn icon="💼" label="企微"    color="#07C160" onClick={() => handleOAuth('wecom')} />
-        </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <OAuthBtn icon="🏢" label="LDAP"    color="#60A5FA" onClick={() => handleOAuth('ldap')} />
+              <OAuthBtn icon="🔑" label="OIDC"    color="#A78BFA" onClick={() => handleOAuth('oidc')} />
+              <OAuthBtn icon="🔔" label="钉钉"    color="#1677FF" onClick={() => handleOAuth('dingtalk')} />
+              <OAuthBtn icon="🦅" label="飞书"    color="#00B42A" onClick={() => handleOAuth('feishu')} />
+              <OAuthBtn icon="💼" label="企微"    color="#07C160" onClick={() => handleOAuth('wecom')} />
+            </div>
+          </>
+        )}
       </div>
 
       {/* 底部版本号 */}

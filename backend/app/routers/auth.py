@@ -21,11 +21,13 @@ from app.core.security import (
 )
 from app.schemas.auth import (
     ChangePasswordRequest,
+    LdapLoginRequest,
     LoginRequest,
     RefreshRequest,
     TokenResponse,
     TwoFAVerifyRequest,
 )
+from app.services.ldap_auth import LdapAuthService
 from app.services.user import UserService
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,23 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/login/form/", response_model=TokenResponse, include_in_schema=False)
 async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     return await login(LoginRequest(username=form_data.username, password=form_data.password), db)
+
+
+@router.post("/ldap/", response_model=TokenResponse, summary="LDAP 登录")
+async def ldap_login(data: LdapLoginRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        user = await LdapAuthService.authenticate(db, data.username, data.password)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="账号已被禁用")
+
+    payload = {"sub": str(user.id), "username": user.username, "tenant_id": user.tenant_id}
+    logger.info("ldap_user_login: %s", user.username)
+    return TokenResponse(
+        access_token=create_access_token(payload),
+        refresh_token=create_refresh_token({"sub": str(user.id), "tenant_id": user.tenant_id}),
+    )
 
 
 @router.post("/token/refresh/", response_model=TokenResponse, summary="刷新 access_token")

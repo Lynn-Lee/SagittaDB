@@ -25,6 +25,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "cryptography>=42.0.0",
     "pyotp>=2.9.0",           # Sprint 1: 2FA TOTP
+    "ldap3>=2.9.1",           # Pack F: LDAP 认证
     # Redis
     "redis[hiredis]>=5.0.1",
     # 异步任务

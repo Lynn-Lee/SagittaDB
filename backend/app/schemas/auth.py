@@ -35,6 +35,11 @@ class ChangePasswordRequest(BaseModel):
         return v
 
 
+class LdapLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
 class UserMeResponse(BaseModel):
     id: int
     username: str
