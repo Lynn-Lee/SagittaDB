@@ -1,5 +1,10 @@
 """
 pytest 测试配置与公共 fixtures。
+
+集成测试架构说明：
+  每个测试的 client fixture 在当前 function-scoped event loop 内
+  独立创建 AsyncEngine，彻底避免 asyncpg 连接跨 event loop 的问题。
+  代价是每个集成测试会重建 schema（CREATE TABLE IF NOT EXISTS，幂等且快速）。
 """
 from collections.abc import AsyncGenerator
 
@@ -13,39 +18,23 @@ from app.core.database import get_db
 from app.main import app
 from app.models.base import Base
 
-# 测试数据库（使用独立的 test DB，避免污染开发数据）
-# 只替换 URL 最后一段（数据库名），避免误替换用户名部分
+# 测试数据库 URL：只替换最后一段数据库名，保留用户名不变
 _db_url_base, _, _ = settings.DATABASE_URL.rpartition("/")
 TEST_DATABASE_URL = f"{_db_url_base}/archery_test"
 
 
-@pytest_asyncio.fixture(scope="session")
-async def test_engine():
+@pytest_asyncio.fixture
+async def client() -> AsyncGenerator[AsyncClient, None]:
+    """
+    每个测试独立创建 AsyncEngine + Session，与当前 event loop 严格绑定，
+    避免 asyncpg 连接跨 loop 导致的 'Future attached to a different loop' 错误。
+    """
+    # 在当前 function loop 内创建 engine
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
 
-
-@pytest_asyncio.fixture
-async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    """每个测试使用独立事务，测试后自动回滚。"""
-    async_session = async_sessionmaker(test_engine, expire_on_commit=False)
-    async with async_session() as session, session.begin():
-        yield session
-        await session.rollback()
-
-
-@pytest_asyncio.fixture
-async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
-    """
-    HTTPX 异步测试客户端，覆盖 get_db 依赖指向测试数据库。
-    每个请求使用独立 session（自动回滚）。
-    """
-    async_session = async_sessionmaker(test_engine, expire_on_commit=False)
+    async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         async with async_session() as session:
@@ -58,6 +47,7 @@ async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
     ) as ac:
         yield ac
     app.dependency_overrides.pop(get_db, None)
+    await engine.dispose()
 
 
 @pytest.fixture
@@ -91,21 +81,17 @@ def mock_superuser():
 @pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient) -> dict[str, str]:
     """
-    在测试 DB 中创建 admin 用户并返回 Authorization 头，供集成测试使用。
+    返回管理员 Authorization 头，供集成测试使用。
     """
-    # 先尝试登录，若失败则通过 API /system/init 初始化
     resp = await client.post("/api/v1/auth/login/", json={
         "username": "admin", "password": "Admin@2024!",
     })
     if resp.status_code == 200:
-        token = resp.json()["access_token"]
-        return {"Authorization": f"Bearer {token}"}
+        return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
-    # 用户不存在 → 直接调系统初始化接口
     await client.post("/api/v1/system/init/")
     resp = await client.post("/api/v1/auth/login/", json={
         "username": "admin", "password": "Admin@2024!",
     })
     assert resp.status_code == 200, f"初始化后仍无法登录: {resp.text}"
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
