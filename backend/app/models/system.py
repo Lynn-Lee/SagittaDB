@@ -1,7 +1,7 @@
 """
 系统配置 & 操作审计日志模型。
 """
-from sqlalchemy import Index, Integer, String, Text, Boolean
+from sqlalchemy import Boolean, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import BaseModel

@@ -12,8 +12,7 @@ import hmac
 import logging
 import time
 import urllib.parse
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +95,7 @@ class NotifyService:
             content_lines.append(f"数据库：{db_name}")
         if remark:
             content_lines.append(f"备注：{remark}")
-        content_lines.append(f"时间：{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        content_lines.append(f"时间：{datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
         platform_url = config.get("platform_url", "http://localhost")
         detail_url = f"{platform_url}/workflow/{workflow_id}"

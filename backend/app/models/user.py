@@ -1,13 +1,10 @@
 """
 用户、权限组、资源组相关模型。
 """
-from sqlalchemy import (
-    Boolean, ForeignKey, Index, Integer, String, Table, Column, Text
-)
+from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, String, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, BaseModel
-
 
 # ─── 关联表（多对多）─────────────────────────────────────────
 instance_resource_group = Table(
@@ -74,7 +71,7 @@ class ResourceGroup(BaseModel):
     feishu_webhook: Mapped[str] = mapped_column(String(500), default="", comment="飞书 Webhook")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
 
-    instances: Mapped[list["Instance"]] = relationship(  # type: ignore[name-defined]
+    instances: Mapped[list["Instance"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "Instance", secondary=instance_resource_group, back_populates="resource_groups"
     )
     users: Mapped[list[Users]] = relationship(

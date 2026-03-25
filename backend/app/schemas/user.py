@@ -1,9 +1,8 @@
 """
 用户与资源组 Pydantic Schema。
 """
-from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator
 
+from pydantic import BaseModel, field_validator
 
 # ─── 用户 ─────────────────────────────────────────────────────
 
@@ -34,12 +33,12 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    display_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    is_active: Optional[bool] = None
-    is_superuser: Optional[bool] = None
-    resource_group_ids: Optional[list[int]] = None
+    display_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    is_active: bool | None = None
+    is_superuser: bool | None = None
+    resource_group_ids: list[int] | None = None
 
 
 class UserResponse(BaseModel):
@@ -84,10 +83,10 @@ class ResourceGroupCreate(BaseModel):
 
 
 class ResourceGroupUpdate(BaseModel):
-    group_name_cn: Optional[str] = None
-    ding_webhook: Optional[str] = None
-    feishu_webhook: Optional[str] = None
-    is_active: Optional[bool] = None
+    group_name_cn: str | None = None
+    ding_webhook: str | None = None
+    feishu_webhook: str | None = None
+    is_active: bool | None = None
 
 
 class ResourceGroupResponse(BaseModel):

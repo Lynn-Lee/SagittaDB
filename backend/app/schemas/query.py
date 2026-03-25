@@ -2,7 +2,8 @@
 在线查询 Pydantic Schema（Sprint 2）。
 """
 from datetime import date
-from typing import Any, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 

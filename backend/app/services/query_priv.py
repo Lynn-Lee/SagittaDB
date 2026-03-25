@@ -5,17 +5,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import AppException, ForbiddenException, NotFoundException
-from app.engines.registry import get_engine
+from app.core.exceptions import AppException, NotFoundException
 from app.models.instance import Instance
 from app.models.query import QueryLog, QueryPrivilege, QueryPrivilegeApply
-from app.models.user import Users
 from app.services.masking import extract_table_refs
 
 logger = logging.getLogger(__name__)

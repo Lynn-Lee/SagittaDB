@@ -6,8 +6,13 @@ from datetime import datetime
 from enum import IntEnum
 
 from sqlalchemy import (
-    BigInteger, Boolean, DateTime, Enum, ForeignKey, Index,
-    Integer, String, Text, UniqueConstraint
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

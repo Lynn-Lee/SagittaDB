@@ -4,17 +4,20 @@
 from __future__ import annotations
 
 import logging
-from sqlalchemy import func, select, delete
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.security import hash_password, verify_password
 from app.models.user import Permission, ResourceGroup, Users, user_permission, user_resource_group
 from app.schemas.user import (
-    ResourceGroupCreate, ResourceGroupUpdate,
-    UserCreate, UserUpdate,
+    ResourceGroupCreate,
+    ResourceGroupUpdate,
+    UserCreate,
+    UserUpdate,
 )
 
 logger = logging.getLogger(__name__)

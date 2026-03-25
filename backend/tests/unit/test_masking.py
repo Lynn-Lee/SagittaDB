@@ -2,7 +2,6 @@
 数据脱敏服务单元测试。
 验证 sqlglot 替代 goInception 的解析功能（修复 P0-3）。
 """
-import pytest
 
 from app.engines.models import ResultSet
 from app.services.masking import (

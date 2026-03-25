@@ -4,9 +4,10 @@ SQL 回滚辅助路由（Pack E 重写）。
 MySQL 提供 my2sql 命令生成器，PgSQL 提供 WAL 查询，所有数据库提供逆向 SQL 生成。
 """
 import logging
+
+from fastapi import APIRouter, Depends
+from fastapi import Query as QParam
 from pydantic import BaseModel
-from typing import Optional
-from fastapi import APIRouter, Depends, Query as QParam
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,11 +21,11 @@ router = APIRouter()
 
 
 class ReverseRequest(BaseModel):
-    workflow_id: Optional[int] = None
+    workflow_id: int | None = None
     sql: str
     db_type: str
     table_name: str = ""
-    primary_keys: Optional[list[str]] = None
+    primary_keys: list[str] | None = None
 
 
 class My2SqlRequest(BaseModel):
@@ -82,8 +83,9 @@ async def generate_reverse_sql(
 
     # 如果传入 workflow_id，从工单读取 SQL
     if data.workflow_id and not sql.strip():
-        from app.models.workflow import SqlWorkflow
         from sqlalchemy.orm import selectinload
+
+        from app.models.workflow import SqlWorkflow
         result = await db.execute(
             select(SqlWorkflow)
             .options(selectinload(SqlWorkflow.content))

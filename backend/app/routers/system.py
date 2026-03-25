@@ -1,18 +1,22 @@
 """系统管理路由：用户、资源组、权限、系统配置、审计日志（Pack C1）。"""
 import logging
+
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import current_user, require_perm
 from app.schemas.user import (
-    GrantPermissionRequest, ResourceGroupCreate, ResourceGroupUpdate,
-    UserCreate, UserUpdate,
+    GrantPermissionRequest,
+    ResourceGroupCreate,
+    ResourceGroupUpdate,
+    UserCreate,
+    UserUpdate,
 )
-from app.services.user import ResourceGroupService, UserService
-from app.services.system_config import SystemConfigService
 from app.services.audit_log import AuditLogService
+from app.services.system_config import SystemConfigService
+from app.services.user import ResourceGroupService, UserService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -165,6 +169,7 @@ async def list_rg_members(
     _user=Depends(current_user),
 ):
     from sqlalchemy import select
+
     from app.models.user import Users, user_resource_group
     result = await db.execute(
         select(Users).join(
@@ -188,8 +193,9 @@ async def update_rg_members(
     _user=Depends(require_perm("resource_group_manage")),
 ):
     """全量更新：传入的 user_ids 即为最终成员列表。"""
-    from sqlalchemy import select, delete
-    from app.models.user import Users, user_resource_group, ResourceGroup
+    from sqlalchemy import delete, select
+
+    from app.models.user import ResourceGroup, user_resource_group
 
     rg_result = await db.execute(select(ResourceGroup).where(ResourceGroup.id == rg_id))
     rg = rg_result.scalar_one_or_none()
@@ -215,6 +221,7 @@ async def update_rg_members(
 @router.get("/permissions/", summary="权限码列表")
 async def list_permissions(db: AsyncSession = Depends(get_db), _user=Depends(current_user)):
     from sqlalchemy import select
+
     from app.models.user import Permission
     result = await db.execute(select(Permission).order_by(Permission.codename))
     perms = result.scalars().all()

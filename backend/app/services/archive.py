@@ -23,12 +23,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
-from app.models.instance import Instance
 from app.engines.registry import get_engine
+from app.models.instance import Instance
 
 logger = logging.getLogger(__name__)
 

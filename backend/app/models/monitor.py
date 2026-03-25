@@ -3,10 +3,8 @@
 """
 from datetime import date
 
-from sqlalchemy import (
-    Boolean, Date, Enum, ForeignKey, Index, Integer, JSON, String, Text
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON, Boolean, Date, Enum, ForeignKey, Index, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import BaseModel
 

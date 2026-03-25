@@ -3,17 +3,24 @@
 新增模型后记得在这里 import。
 """
 from app.models.base import Base, BaseModel  # noqa: F401
-from app.models.user import Users, ResourceGroup, Permission  # noqa: F401
-from app.models.instance import Instance, SshTunnel, InstanceTag, InstanceDatabase  # noqa: F401
-from app.models.workflow import (  # noqa: F401
-    SqlWorkflow, SqlWorkflowContent, WorkflowAudit, WorkflowLog,
-    WorkflowStatus, WorkflowType, AuditStatus,
-)
-from app.models.query import QueryPrivilege, QueryPrivilegeApply, QueryLog  # noqa: F401
-from app.models.system import SystemConfig, OperationLog  # noqa: F401
+from app.models.instance import Instance, InstanceDatabase, InstanceTag, SshTunnel  # noqa: F401
 from app.models.masking import MaskingRule, WorkflowTemplate  # noqa: F401
 from app.models.monitor import (  # noqa: F401
-    MonitorCollectConfig, MonitorPrivilegeApply, MonitorPrivilege,
+    MonitorCollectConfig,
+    MonitorPrivilege,
+    MonitorPrivilegeApply,
+)
+from app.models.query import QueryLog, QueryPrivilege, QueryPrivilegeApply  # noqa: F401
+from app.models.system import OperationLog, SystemConfig  # noqa: F401
+from app.models.user import Permission, ResourceGroup, Users  # noqa: F401
+from app.models.workflow import (  # noqa: F401
+    AuditStatus,
+    SqlWorkflow,
+    SqlWorkflowContent,
+    WorkflowAudit,
+    WorkflowLog,
+    WorkflowStatus,
+    WorkflowType,
 )
 
 __all__ = [

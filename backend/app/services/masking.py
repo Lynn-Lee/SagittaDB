@@ -11,12 +11,12 @@
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 import sqlglot
 import sqlglot.expressions as exp
-import logging
 
 from app.engines.models import ResultSet
 
@@ -200,10 +200,7 @@ class DataMaskingService:
         # 执行脱敏
         masked_rows = []
         for row in resultset.rows:
-            if isinstance(row, dict):
-                row_list = list(row.values())
-            else:
-                row_list = list(row)
+            row_list = list(row.values()) if isinstance(row, dict) else list(row)
 
             for col_idx, rule in mask_cols.items():
                 if col_idx < len(row_list):

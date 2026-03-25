@@ -3,17 +3,19 @@
 完整实现：执行查询、权限校验、数据脱敏、查询日志。
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query as QParam
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Query as QParam
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.deps import current_user
 from app.engines.registry import get_engine
 from app.models.instance import Instance
-from app.schemas.query import QueryExecuteRequest, QueryResultResponse
-from app.services.masking import DataMaskingService, extract_select_columns
+from app.schemas.query import QueryExecuteRequest
+from app.services.masking import DataMaskingService
 from app.services.masking_rule import MaskingRuleService
 from app.services.query_priv import QueryPrivService
 
@@ -25,7 +27,7 @@ async def _load_instance(db: AsyncSession, instance_id: int) -> Instance:
     result = await db.execute(
         select(Instance)
         .options(selectinload(Instance.resource_groups))
-        .where(Instance.id == instance_id, Instance.is_active == True)
+        .where(Instance.id == instance_id, Instance.is_active)
     )
     inst = result.scalar_one_or_none()
     if not inst:
@@ -53,9 +55,8 @@ async def execute_query(
 
     # ── 2. SQL 前置检查 ────────────────────────────────────────
     check = engine.query_check(data.db_name, data.sql)
-    if check.get("msg") and not check.get("syntax_error") is False:
-        if check.get("syntax_error"):
-            raise HTTPException(400, f"SQL 语法错误：{check['msg']}")
+    if check.get("msg") and check.get("syntax_error") is not False and check.get("syntax_error"):
+        raise HTTPException(400, f"SQL 语法错误：{check['msg']}")
 
     # ── 3. 查询权限校验 ────────────────────────────────────────
     passed, reason = await QueryPrivService.check_query_priv(

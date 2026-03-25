@@ -4,7 +4,7 @@ SQL 工单异步执行 Celery 任务（Sprint 3）。
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.celery_app import celery_app
 
@@ -28,21 +28,21 @@ def execute_workflow_task(self, workflow_id: int, operator_id: int):
 
 async def _execute_async(workflow_id: int, operator_id: int):
     """异步执行逻辑。"""
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
     from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    from sqlalchemy.orm import selectinload, sessionmaker
+
     from app.core.config import settings
-    from app.models.workflow import SqlWorkflow, SqlWorkflowContent, WorkflowAudit, WorkflowStatus
+    from app.engines.registry import get_engine
     from app.models.instance import Instance
     from app.models.user import Users
-    from app.engines.registry import get_engine
-    from app.services.audit import AuditService, OP_EXECUTE
-    from sqlalchemy.orm import selectinload
+    from app.models.workflow import SqlWorkflow, WorkflowAudit, WorkflowStatus
+    from app.services.audit import OP_EXECUTE, AuditService
 
     engine = create_async_engine(settings.DATABASE_URL)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session_local = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    async with AsyncSessionLocal() as db:
+    async with async_session_local() as db:
         # 加载工单
         result = await db.execute(
             select(SqlWorkflow)
@@ -91,7 +91,7 @@ async def _execute_async(workflow_id: int, operator_id: int):
                 wf.content.execute_result = json.dumps({"error": str(e)})
             wf.status = WorkflowStatus.EXCEPTION
 
-        wf.finish_time = datetime.now(timezone.utc)
+        wf.finish_time = datetime.now(UTC)
 
         # 写日志
         audit_result = await db.execute(

@@ -1,13 +1,21 @@
 """
 SQL 工单路由（Sprint 3）。
 """
+import contextlib
 import logging
-from fastapi import APIRouter, Depends, Query as QParam, Request, WebSocket, WebSocketDisconnect
+
+from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
+from fastapi import Query as QParam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import current_user, require_perm
-from app.schemas.workflow import WorkflowCreateRequest, WorkflowAuditRequest, WorkflowExecuteRequest, WorkflowCheckRequest
+from app.schemas.workflow import (
+    WorkflowAuditRequest,
+    WorkflowCheckRequest,
+    WorkflowCreateRequest,
+    WorkflowExecuteRequest,
+)
 from app.services.audit import AuditService
 from app.services.audit_log import AuditLogService
 from app.services.notify import NotifyService
@@ -153,6 +161,7 @@ async def get_workflow_status(
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import select
+
     from app.models.workflow import SqlWorkflow
     from app.services.workflow import STATUS_DESC
     result = await db.execute(select(SqlWorkflow).where(SqlWorkflow.id == workflow_id))
@@ -182,11 +191,13 @@ async def workflow_progress_ws(
     """
     await websocket.accept()
     import asyncio
+
     from sqlalchemy import select
+
     from app.models.workflow import SqlWorkflow
     from app.services.workflow import STATUS_DESC
 
-    TERMINAL_STATES = {6, 7, 8}  # FINISH, EXCEPTION, ABORT
+    terminal_states = {6, 7, 8}  # FINISH, EXCEPTION, ABORT
     try:
         while True:
             result = await db.execute(
@@ -202,7 +213,7 @@ async def workflow_progress_ws(
                 "status_desc": STATUS_DESC.get(wf.status, "未知"),
                 "finish_time": wf.finish_time.isoformat() if wf.finish_time else None,
             })
-            if wf.status in TERMINAL_STATES:
+            if wf.status in terminal_states:
                 break
             await asyncio.sleep(1)
     except WebSocketDisconnect:
@@ -210,7 +221,5 @@ async def workflow_progress_ws(
     except Exception as e:
         logger.error("ws_error: %s", str(e))
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close()
-        except Exception:
-            pass

@@ -4,6 +4,7 @@ AI Text2SQL 路由（Pack D）。
 系统配置中需配置 ai_api_key 和 ai_model。
 """
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -40,7 +41,6 @@ async def text2sql(
 
     # 获取实例信息（用于生成更准确的 SQL）
     db_type = data.dialect_hint or "sql"
-    schema_hint = ""
     if data.instance_id:
         inst_result = await db.execute(
             select(Instance).where(Instance.id == data.instance_id)
@@ -118,10 +118,10 @@ async def text2sql(
             "model": ai_model,
         }
 
-    except httpx.TimeoutException:
-        raise HTTPException(504, "AI API 请求超时，请重试")
+    except httpx.TimeoutException as e:
+        raise HTTPException(504, "AI API 请求超时，请重试") from e
     except HTTPException:
         raise
     except Exception as e:
         logger.error("text2sql_error: %s", str(e))
-        raise HTTPException(500, f"AI 生成失败：{str(e)}")
+        raise HTTPException(500, f"AI 生成失败：{str(e)}") from e

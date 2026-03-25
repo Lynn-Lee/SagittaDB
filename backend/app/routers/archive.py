@@ -3,14 +3,14 @@
 支持所有平台接入的数据库类型，不支持的返回明确提示。
 """
 import logging
-from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, HTTPException, Query as QParam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import current_user, require_perm
-from app.services.archive import ArchiveService, ARCHIVE_SUPPORT
+from app.services.archive import ARCHIVE_SUPPORT, ArchiveService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -22,9 +22,9 @@ class ArchiveRequest(BaseModel):
     source_table: str
     condition: str = Field(..., description="WHERE 条件（MongoDB 需为 JSON 格式）")
     archive_mode: str = Field(default="purge", description="purge=直接删除 dest=归档到目标")
-    dest_instance_id: Optional[int] = None
-    dest_db: Optional[str] = None
-    dest_table: Optional[str] = None
+    dest_instance_id: int | None = None
+    dest_db: str | None = None
+    dest_table: str | None = None
     batch_size: int = Field(default=1000, ge=1, le=10000)
     sleep_ms: int = Field(default=100, ge=0, le=10000)
     dry_run: bool = Field(default=True, description="True=只估算不执行，默认开启防止误操作")

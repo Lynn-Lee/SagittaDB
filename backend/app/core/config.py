@@ -3,6 +3,7 @@
 所有配置项均有默认值，便于开发环境零配置启动。
 """
 from typing import Literal
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

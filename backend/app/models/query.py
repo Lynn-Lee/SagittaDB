@@ -4,10 +4,8 @@
 """
 from datetime import date
 
-from sqlalchemy import (
-    BigInteger, Boolean, Date, ForeignKey, Index, Integer, String, Text
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import BigInteger, Boolean, Date, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import BaseModel
 

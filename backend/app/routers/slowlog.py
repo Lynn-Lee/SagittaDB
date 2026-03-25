@@ -3,8 +3,10 @@
 使用 PostgreSQL 的 pg_stat_statements 或引擎自带慢查询日志。
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query as QParam
-from sqlalchemy import select, text
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Query as QParam
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -25,7 +27,7 @@ async def list_slow_queries(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Instance).where(Instance.id == instance_id, Instance.is_active == True)
+        select(Instance).where(Instance.id == instance_id, Instance.is_active)
     )
     inst = result.scalar_one_or_none()
     if not inst:
@@ -64,7 +66,7 @@ async def list_slow_queries(
 
     cols = rs.column_list or []
     return {
-        "items": [dict(zip(cols, r)) if isinstance(r, tuple) else r for r in rs.rows],
+        "items": [dict(zip(cols, r, strict=False)) if isinstance(r, tuple) else r for r in rs.rows],
         "total": len(rs.rows),
     }
 
@@ -77,7 +79,7 @@ async def slow_query_stats(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Instance).where(Instance.id == instance_id, Instance.is_active == True)
+        select(Instance).where(Instance.id == instance_id, Instance.is_active)
     )
     inst = result.scalar_one_or_none()
     if not inst:
@@ -101,6 +103,6 @@ async def slow_query_stats(
         if rs.error:
             return {"items": [], "msg": "pg_stat_statements 扩展未安装"}
         cols = rs.column_list or []
-        return {"items": [dict(zip(cols, r)) for r in rs.rows]}
+        return {"items": [dict(zip(cols, r, strict=False)) for r in rs.rows]}
     except Exception as e:
         return {"items": [], "msg": f"pg_stat_statements 不可用：{str(e)}"}

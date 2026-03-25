@@ -1,13 +1,18 @@
 """
 Sprint 1 认证与用户服务单元测试。
 """
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from pydantic import ValidationError
 
 from app.core.security import (
-    hash_password, verify_password,
-    create_access_token, create_refresh_token, decode_token,
-    encrypt_field, decrypt_field,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    decrypt_field,
+    encrypt_field,
+    hash_password,
+    verify_password,
 )
 from app.schemas.user import UserCreate
 
@@ -84,13 +89,13 @@ class TestUserCreateSchema:
         assert u.username == "jiali"
 
     def test_short_username_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             UserCreate(username="a", password="password123")
 
     def test_short_password_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             UserCreate(username="validuser", password="short")
 
     def test_invalid_username_chars(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             UserCreate(username="user name!", password="password123")

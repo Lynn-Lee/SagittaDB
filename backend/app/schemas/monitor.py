@@ -2,7 +2,7 @@
 可观测中心 Pydantic Schema（Sprint 5）。
 """
 from datetime import date
-from typing import Any, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -22,10 +22,10 @@ class MonitorConfigCreate(BaseModel):
 
 
 class MonitorConfigUpdate(BaseModel):
-    exporter_url: Optional[str] = None
-    collect_interval: Optional[int] = None
-    is_enabled: Optional[bool] = None
-    alert_rules_override: Optional[dict] = None
+    exporter_url: str | None = None
+    collect_interval: int | None = None
+    is_enabled: bool | None = None
+    alert_rules_override: dict | None = None
 
 
 class MonitorConfigResponse(BaseModel):

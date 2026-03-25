@@ -2,8 +2,8 @@
 引擎注册工厂。
 通过 get_engine(instance) 根据 db_type 分发到对应引擎实现。
 """
-from typing import TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.instance import Instance

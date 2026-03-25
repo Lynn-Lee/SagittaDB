@@ -2,12 +2,14 @@
 数据脱敏规则 + 工单模板路由（Pack D）。
 """
 import logging
-from fastapi import APIRouter, Depends, Query as QParam
+
+from fastapi import APIRouter, Depends
+from fastapi import Query as QParam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import current_user, require_perm
-from app.services.masking_rule import MaskingRuleService, WorkflowTemplateService, RULE_TYPES
+from app.services.masking_rule import RULE_TYPES, MaskingRuleService, WorkflowTemplateService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

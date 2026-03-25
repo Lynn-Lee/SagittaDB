@@ -1,10 +1,10 @@
 """
 引擎注册工厂测试。
 """
-import pytest
-from unittest.mock import MagicMock
 
-from app.engines.registry import get_engine, supported_engines, register_engine
+import pytest
+
+from app.engines.registry import get_engine, register_engine, supported_engines
 
 
 class MockInstance:

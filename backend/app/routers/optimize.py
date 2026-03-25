@@ -3,13 +3,13 @@ SQL 优化路由（Sprint 4）。
 提供 EXPLAIN 分析和 sqlglot 语法建议。
 """
 import logging
-from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 import sqlglot
 import sqlglot.expressions as exp
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import current_user
@@ -33,7 +33,7 @@ async def explain_sql(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Instance).where(Instance.id == data.instance_id, Instance.is_active == True)
+        select(Instance).where(Instance.id == data.instance_id, Instance.is_active)
     )
     inst = result.scalar_one_or_none()
     if not inst:

@@ -2,7 +2,9 @@
 会话/锁/事务诊断路由（Sprint 4）。
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query as QParam
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Query as QParam
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +18,7 @@ router = APIRouter()
 
 
 async def _get_instance(db: AsyncSession, instance_id: int) -> Instance:
-    result = await db.execute(select(Instance).where(Instance.id == instance_id, Instance.is_active == True))
+    result = await db.execute(select(Instance).where(Instance.id == instance_id, Instance.is_active))
     inst = result.scalar_one_or_none()
     if not inst:
         raise HTTPException(404, f"实例 ID={instance_id} 不存在")
@@ -74,5 +76,5 @@ async def get_variables(
         raise HTTPException(400, f"获取参数失败：{rs.error}")
     cols = rs.column_list or []
     return {
-        "params": [dict(zip(cols, r)) if isinstance(r, tuple) else r for r in rs.rows]
+        "params": [dict(zip(cols, r, strict=False)) if isinstance(r, tuple) else r for r in rs.rows]
     }

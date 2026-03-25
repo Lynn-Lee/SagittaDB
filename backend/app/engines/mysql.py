@@ -8,12 +8,12 @@ MySQL 引擎实现。
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import TYPE_CHECKING, Any
 
 import aiomysql
 import sqlglot
-import logging
 
 from app.core.config import settings
 from app.core.security import decrypt_field
@@ -31,7 +31,7 @@ class MysqlEngine:
     name = "MysqlEngine"
     db_type = "mysql"
 
-    def __init__(self, instance: "Instance") -> None:
+    def __init__(self, instance: Instance) -> None:
         self.instance = instance
         self._host = instance.host
         self._port = instance.port
@@ -136,7 +136,7 @@ class MysqlEngine:
             parameters={"db": db_name}, limit_num=0,
         )
         cols = rs.column_list
-        return [dict(zip(cols, row)) for row in rs.rows]
+        return [dict(zip(cols, row, strict=False)) for row in rs.rows]
 
     # ── 查询 ──────────────────────────────────────────────────
 
@@ -150,7 +150,7 @@ class MysqlEngine:
             tree = sqlglot.parse_one(sql_strip, dialect="mysql")
             # 检查是否有 SELECT *
             import sqlglot.expressions as exp
-            for col in tree.find_all(exp.Star):
+            for _col in tree.find_all(exp.Star):
                 result["has_star"] = True
                 break
             # 检查是否包含写操作（INSERT/UPDATE/DELETE/DROP/TRUNCATE）
@@ -261,10 +261,9 @@ class MysqlEngine:
                 item.errormessage = f"高风险操作 {type(stmt).__name__}，请确认已备份"
 
             # 规则 2：DML 必须有 WHERE
-            if isinstance(stmt, (exp.Update, exp.Delete)):
-                if not stmt.find(exp.Where):
-                    item.errlevel = 2
-                    item.errormessage = "UPDATE/DELETE 语句缺少 WHERE 条件，拒绝执行"
+            if isinstance(stmt, (exp.Update, exp.Delete)) and not stmt.find(exp.Where):
+                item.errlevel = 2
+                item.errormessage = "UPDATE/DELETE 语句缺少 WHERE 条件，拒绝执行"
 
             # 规则 3：SELECT * 警告
             if isinstance(stmt, exp.Select):

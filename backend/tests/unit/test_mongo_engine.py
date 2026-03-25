@@ -3,6 +3,8 @@ MongoDB 引擎单元测试。
 验证 shell=True 命令注入漏洞（P0-1）修复：
 所有查询通过 pymongo Driver，不调用任何 subprocess。
 """
+import contextlib
+
 import pytest
 
 from app.engines.mongo import MongoEngine
@@ -89,14 +91,11 @@ class TestMongoQueryParser:
 
     def test_no_subprocess_called(self):
         """验证 MongoEngine 不调用任何 subprocess（核心安全保证）。"""
-        import subprocess
         import unittest.mock as mock
 
         with mock.patch("subprocess.Popen") as mock_popen:
-            try:
+            with contextlib.suppress(Exception):
                 self.engine._parse_mongo_query('db.users.find({"id": 1})')
-            except Exception:
-                pass
             # subprocess.Popen 不应该被调用
             mock_popen.assert_not_called()
 

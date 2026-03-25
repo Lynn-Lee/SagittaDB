@@ -1,9 +1,9 @@
 """
 认证路由：登录、登出、Token 刷新、2FA、当前用户信息。
 """
+import logging
 import time
 
-import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError
@@ -12,23 +12,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import current_user, oauth2_scheme
 from app.core.security import (
-    create_access_token, create_refresh_token,
-    decode_token, encrypt_field, decrypt_field, verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    decrypt_field,
+    encrypt_field,
+    verify_password,
 )
 from app.schemas.auth import (
-    ChangePasswordRequest, LoginRequest, RefreshRequest,
-    TokenResponse, TwoFAVerifyRequest,
+    ChangePasswordRequest,
+    LoginRequest,
+    RefreshRequest,
+    TokenResponse,
+    TwoFAVerifyRequest,
 )
 from app.services.user import UserService
-from app.services.audit_log import AuditLogService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 async def get_redis():
-    from app.core.config import settings
     from redis.asyncio import Redis
+
+    from app.core.config import settings
     r = Redis.from_url(settings.REDIS_URL, decode_responses=True)
     try:
         yield r
@@ -64,8 +71,8 @@ async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Async
 async def refresh_token(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
     try:
         payload = decode_token(data.refresh_token)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="refresh_token 无效或已过期")
+    except JWTError as e:
+        raise HTTPException(status_code=401, detail="refresh_token 无效或已过期") from e
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="非法的 token 类型")
 

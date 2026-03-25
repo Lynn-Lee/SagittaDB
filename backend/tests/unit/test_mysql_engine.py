@@ -5,11 +5,11 @@ MySQL 引擎单元测试。
   - sqlglot 基础审核规则
   - filter_sql LIMIT 注入
 """
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.engines.mysql import MysqlEngine
+import pytest
+
 from app.engines.models import ReviewSet
+from app.engines.mysql import MysqlEngine
 
 
 class MockInstance:

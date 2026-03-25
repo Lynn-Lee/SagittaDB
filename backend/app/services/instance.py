@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -15,7 +16,8 @@ from app.engines.registry import get_engine
 from app.models.instance import Instance, InstanceTag, SshTunnel
 from app.models.user import ResourceGroup
 from app.schemas.instance import (
-    InstanceCreate, InstanceUpdate,
+    InstanceCreate,
+    InstanceUpdate,
     TunnelCreate,
 )
 
@@ -55,7 +57,7 @@ class InstanceService:
                 selectinload(Instance.instance_tags),
                 selectinload(Instance.resource_groups),
             )
-            .where(Instance.is_active == True)
+            .where(Instance.is_active)
         )
         if db_type:
             query = query.where(Instance.db_type == db_type.lower())
@@ -209,7 +211,7 @@ class InstanceService:
         if not rs.is_success:
             raise Exception(f"获取列信息失败：{rs.error}")
         cols = rs.column_list or []
-        return [dict(zip(cols, row)) if isinstance(row, (tuple, list)) else row for row in rs.rows]
+        return [dict(zip(cols, row, strict=False)) if isinstance(row, (tuple, list)) else row for row in rs.rows]
 
     @staticmethod
     async def get_variables(
@@ -221,7 +223,7 @@ class InstanceService:
         if not rs.is_success:
             raise Exception(f"获取参数列表失败：{rs.error}")
         cols = rs.column_list or []
-        return [dict(zip(cols, row)) if isinstance(row, (tuple, list)) else row for row in rs.rows]
+        return [dict(zip(cols, row, strict=False)) if isinstance(row, (tuple, list)) else row for row in rs.rows]
 
     # ─── 实例信息序列化（不暴露密码）────────────────────────
     @staticmethod

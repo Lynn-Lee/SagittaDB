@@ -1,14 +1,17 @@
 """可观测中心 + Dashboard 统计服务（Sprint 5）。"""
 from __future__ import annotations
+
 import logging
-from datetime import date, datetime, timezone, timedelta
+from datetime import UTC, date, datetime, timedelta
+
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.exceptions import AppException, ConflictException, NotFoundException
 from app.models.instance import Instance
 from app.models.monitor import MonitorCollectConfig, MonitorPrivilege, MonitorPrivilegeApply
-from app.models.workflow import SqlWorkflow, WorkflowStatus
 from app.models.query import QueryLog
+from app.models.workflow import SqlWorkflow
 from app.schemas.monitor import MonitorConfigCreate, MonitorConfigUpdate
 
 logger = logging.getLogger(__name__)
@@ -80,7 +83,7 @@ class MonitorService:
         result = await db.execute(
             select(MonitorCollectConfig, Instance)
             .join(Instance, MonitorCollectConfig.instance_id == Instance.id)
-            .where(MonitorCollectConfig.is_enabled == True)
+            .where(MonitorCollectConfig.is_enabled)
         )
         targets = []
         for cfg, inst in result:
@@ -166,7 +169,7 @@ class DashboardService:
         days: 统计周期（天），默认 30 天，前端可自定义传入。
         返回：指定周期内各状态工单数量 + 全局统计。
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         period_start = (now - timedelta(days=days)).replace(hour=0, minute=0, second=0, microsecond=0)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -204,14 +207,14 @@ class DashboardService:
             },
             # 全局统计（不受周期限制）
             "instance_total": await count(
-                select(func.count()).select_from(Instance).where(Instance.is_active == True)
+                select(func.count()).select_from(Instance).where(Instance.is_active)
             ),
             "query_today_total": await count(
                 select(func.count()).select_from(QueryLog).where(QueryLog.created_at >= today_start)
             ),
             "monitor_instance_total": await count(
                 select(func.count()).select_from(MonitorCollectConfig)
-                .where(MonitorCollectConfig.is_enabled == True)
+                .where(MonitorCollectConfig.is_enabled)
             ),
         }
 
@@ -222,7 +225,7 @@ class DashboardService:
         返回每天各状态工单数量。
         """
         result = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for i in range(days - 1, -1, -1):
             day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
             day_end = day_start + timedelta(days=1)
@@ -254,7 +257,7 @@ class DashboardService:
     async def get_instance_dist(db: AsyncSession) -> list[dict]:
         result = await db.execute(
             select(Instance.db_type, func.count().label("count"))
-            .where(Instance.is_active == True)
+            .where(Instance.is_active)
             .group_by(Instance.db_type)
             .order_by(func.count().desc())
         )

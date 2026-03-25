@@ -2,7 +2,7 @@
 SQL 工单 Pydantic Schema（Sprint 3）。
 """
 from datetime import datetime
-from typing import Any, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -14,8 +14,8 @@ class WorkflowCreateRequest(BaseModel):
     sql_content: str = Field(..., min_length=1)
     syntax_type: int = Field(default=0, description="0未知 1DDL 2DML 3导出")
     is_backup: bool = True
-    run_date_start: Optional[datetime] = None
-    run_date_end: Optional[datetime] = None
+    run_date_start: datetime | None = None
+    run_date_end: datetime | None = None
 
     @field_validator("sql_content")
     @classmethod
@@ -39,7 +39,7 @@ class WorkflowAuditRequest(BaseModel):
 
 class WorkflowExecuteRequest(BaseModel):
     mode: str = Field(default="auto", description="auto=立即执行 manual=手动执行")
-    timing_time: Optional[datetime] = None
+    timing_time: datetime | None = None
 
 
 class WorkflowItem(BaseModel):
@@ -55,9 +55,9 @@ class WorkflowItem(BaseModel):
     status: int
     status_desc: str
     audit_auth_groups: str
-    run_date_start: Optional[str]
-    run_date_end: Optional[str]
-    finish_time: Optional[str]
+    run_date_start: str | None
+    run_date_end: str | None
+    finish_time: str | None
     created_at: str
 
     model_config = {"from_attributes": True}
@@ -77,9 +77,9 @@ class WorkflowDetailResponse(BaseModel):
     status: int
     status_desc: str
     audit_auth_groups: str
-    run_date_start: Optional[str]
-    run_date_end: Optional[str]
-    finish_time: Optional[str]
+    run_date_start: str | None
+    run_date_end: str | None
+    finish_time: str | None
     created_at: str
     sql_content: str = ""
     review_content: str = ""

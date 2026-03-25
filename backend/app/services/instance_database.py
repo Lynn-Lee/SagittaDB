@@ -5,12 +5,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AppException, ConflictException, NotFoundException
+from app.core.exceptions import ConflictException, NotFoundException
 from app.engines.registry import get_engine
 from app.models.instance import Instance, InstanceDatabase
 
@@ -42,7 +42,7 @@ class InstanceDatabaseService:
             InstanceDatabase.instance_id == instance_id
         )
         if not include_inactive:
-            stmt = stmt.where(InstanceDatabase.is_active == True)
+            stmt = stmt.where(InstanceDatabase.is_active)
         stmt = stmt.order_by(InstanceDatabase.db_name)
         result = await db.execute(stmt)
         rows = result.scalars().all()
@@ -139,14 +139,14 @@ class InstanceDatabaseService:
         返回同步结果统计。
         """
         inst_result = await db.execute(
-            select(Instance).where(Instance.id == instance_id, Instance.is_active == True)
+            select(Instance).where(Instance.id == instance_id, Instance.is_active)
         )
         inst = inst_result.scalar_one_or_none()
         if not inst:
             raise NotFoundException(f"实例 ID={instance_id} 不存在或已停用")
 
         engine = get_engine(inst)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # 根据数据库类型调用不同的查询方式
         try:

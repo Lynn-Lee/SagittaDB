@@ -40,10 +40,9 @@ async def test_engine():
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """每个测试使用独立事务，测试后自动回滚。"""
     async_session = async_sessionmaker(test_engine, expire_on_commit=False)
-    async with async_session() as session:
-        async with session.begin():
-            yield session
-            await session.rollback()
+    async with async_session() as session, session.begin():
+        yield session
+        await session.rollback()
 
 
 @pytest_asyncio.fixture

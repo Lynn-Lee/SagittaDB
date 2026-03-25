@@ -2,7 +2,8 @@
 统一异常处理：所有未捕获的异常都在这里统一格式化返回。
 """
 import logging
-from fastapi import FastAPI, Request, status
+
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 

@@ -1,7 +1,8 @@
 """
 公共分页与响应 Schema。
 """
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
+
 from pydantic import BaseModel, Field
 
 T = TypeVar("T")
@@ -17,7 +18,7 @@ class PageParams(BaseModel):
         return (self.page - 1) * self.page_size
 
 
-class PageResponse(BaseModel, Generic[T]):
+class PageResponse[T](BaseModel):
     """通用分页响应。"""
     total: int
     page: int

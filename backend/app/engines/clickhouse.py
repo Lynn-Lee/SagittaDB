@@ -1,9 +1,12 @@
 """ClickHouse 引擎（Pack E）- clickhouse-connect HTTP 协议。"""
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 from app.core.security import decrypt_field
 from app.engines.models import ResultSet, ReviewSet, SqlItem
+
 if TYPE_CHECKING:
     from app.models.instance import Instance
 
@@ -14,14 +17,14 @@ class ClickHouseEngine:
     name = "ClickHouseEngine"
     db_type = "clickhouse"
 
-    def __init__(self, instance: "Instance") -> None:
+    def __init__(self, instance: Instance) -> None:
         self.instance = instance
 
     def _client(self, db_name: str | None = None):
         try:
             import clickhouse_connect
         except ImportError:
-            raise ImportError("pip install clickhouse-connect")
+            raise ImportError("pip install clickhouse-connect") from None
         return clickhouse_connect.get_client(
             host=self.instance.host,
             port=self.instance.port or 8123,
@@ -36,7 +39,8 @@ class ClickHouseEngine:
         rs = ResultSet()
         try:
             v = self._client().command("SELECT version()")
-            rs.column_list = ["version"]; rs.rows = [(str(v),)]
+            rs.column_list = ["version"]
+            rs.rows = [(str(v),)]
         except Exception as e:
             rs.error = str(e)
         return rs
@@ -84,7 +88,8 @@ class ClickHouseEngine:
         rs = ResultSet()
         try:
             r = self._client(db_name).query(f"DESCRIBE TABLE `{db_name}`.`{tb_name}`")
-            rs.column_list = list(r.column_names); rs.rows = list(r.result_rows)
+            rs.column_list = list(r.column_names)
+            rs.rows = list(r.result_rows)
         except Exception as e:
             rs.error = str(e)
         return rs
@@ -149,7 +154,8 @@ class ClickHouseEngine:
                     review.rows.append(SqlItem(id=i+1, sql=stmt, stagestatus="Executed Successfully"))
                 except Exception as e:
                     review.rows.append(SqlItem(id=i+1, sql=stmt, errlevel=2, errormessage=str(e)))
-                    review.error = str(e); break
+                    review.error = str(e)
+                    break
         except Exception as e:
             review.error = str(e)
         return review

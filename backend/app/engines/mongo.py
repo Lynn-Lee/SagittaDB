@@ -8,13 +8,12 @@ MongoDB 引擎实现。
 """
 from __future__ import annotations
 
-import ast
 import json
+import logging
 import re
 import time
 from typing import TYPE_CHECKING, Any
 
-import logging
 from bson import json_util
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -33,7 +32,7 @@ class MongoEngine:
     name = "MongoEngine"
     db_type = "mongo"
 
-    def __init__(self, instance: "Instance") -> None:
+    def __init__(self, instance: Instance) -> None:
         self.instance = instance
         self._host = instance.host
         self._port = instance.port
@@ -192,10 +191,10 @@ class MongoEngine:
             return {"type": "count", "collection": collection, "filter": filter_dict}
 
         raise ValueError(
-            f"不支持的 MongoDB 查询格式。支持格式：\n"
-            f"  db.collection.find({{query}})\n"
-            f"  db.collection.aggregate([pipeline])\n"
-            f"  db.collection.count({{query}})"
+            "不支持的 MongoDB 查询格式。支持格式：\n"
+            "  db.collection.find({query})\n"
+            "  db.collection.aggregate([pipeline])\n"
+            "  db.collection.count({query})"
         )
 
     def query_check(self, db_name: str, sql: str) -> dict[str, Any]:

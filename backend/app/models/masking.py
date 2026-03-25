@@ -2,7 +2,7 @@
 数据脱敏规则模型（Pack D）。
 支持 7 种内置规则类型 + 自定义正则，可按实例/数据库/表/列精确匹配。
 """
-from sqlalchemy import Boolean, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import BaseModel

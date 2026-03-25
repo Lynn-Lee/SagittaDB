@@ -13,21 +13,19 @@ from app.core.database import engine
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.routers import (
+    archive,
     auth,
+    binlog,
+    diagnostic,
     instance,
-    workflow,
+    monitor,
+    optimize,
     query,
     query_priv,
     slowlog,
-    diagnostic,
-    archive,
-    binlog,
-    optimize,
-    monitor,
     system,
+    workflow,
 )
-from app.routers.masking import router as masking_router, template_router
-from app.routers.ai import router as ai_router
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +77,8 @@ app.include_router(optimize.router,   prefix=f"{API_V1}/optimize",   tags=["SQL 
 app.include_router(monitor.router,    prefix=f"{API_V1}/monitor",    tags=["可观测中心"])
 app.include_router(system.router,     prefix=f"{API_V1}/system",     tags=["系统管理"])
 
-from app.routers.monitor import sd_router
+from app.routers.monitor import sd_router  # noqa: E402
+
 app.include_router(sd_router, prefix="/internal", tags=["内部接口"])
 
 

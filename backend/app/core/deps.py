@@ -24,7 +24,7 @@ async def current_user(
     try:
         payload = decode_token(token)
     except JWTError:
-        raise _401
+        raise _401 from None
 
     user_id = payload.get("sub")
     if not user_id:
@@ -32,8 +32,9 @@ async def current_user(
 
     # Token 黑名单检查（降级：Redis 不可用时放行）
     try:
-        from app.core.config import settings
         from redis.asyncio import Redis
+
+        from app.core.config import settings
         r = Redis.from_url(settings.REDIS_URL, decode_responses=True)
         if await r.exists(f"blacklist:{token}"):
             await r.aclose()

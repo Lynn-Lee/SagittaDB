@@ -2,8 +2,9 @@
 查询权限管理路由（Sprint 2）。
 """
 import logging
-from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query as QParam
+
+from fastapi import APIRouter, Depends
+from fastapi import Query as QParam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db

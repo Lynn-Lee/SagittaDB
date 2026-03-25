@@ -9,15 +9,19 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppException, NotFoundException
 from app.models.workflow import (
-    AuditStatus, SqlWorkflow, WorkflowAudit,
-    WorkflowLog, WorkflowStatus, WorkflowType,
+    AuditStatus,
+    SqlWorkflow,
+    WorkflowAudit,
+    WorkflowLog,
+    WorkflowStatus,
+    WorkflowType,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,8 +121,8 @@ class AuditService:
         if not audit:
             raise AppException("审批记录不存在", code=400)
 
-        user_id = operator.get("id")
-        username = operator.get("username", "")
+        operator.get("id")
+        operator.get("username", "")
 
         if action == OP_PASS:
             return await AuditService._do_pass(db, workflow, audit, operator, remark)
@@ -157,7 +161,7 @@ class AuditService:
             if g["order"] == current_order:
                 g["status"] = AuditStatus.PASSED
                 g["operator"] = operator.get("username")
-                g["operated_at"] = datetime.now(timezone.utc).isoformat()
+                g["operated_at"] = datetime.now(UTC).isoformat()
                 break
 
         # 判断是否还有下一节点

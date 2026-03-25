@@ -4,14 +4,13 @@
 """
 import base64
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import bcrypt
 from jose import jwt
 
 from app.core.config import settings
-
 
 # ─── 密码哈希 ─────────────────────────────────────────────────
 
@@ -42,7 +41,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict[str, Any]) -> str:
     payload = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(
+    expire = datetime.now(UTC) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
     payload.update({"exp": expire, "type": "access"})
@@ -53,7 +52,7 @@ def create_access_token(data: dict[str, Any]) -> str:
 
 def create_refresh_token(data: dict[str, Any]) -> str:
     payload = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(
+    expire = datetime.now(UTC) + timedelta(
         days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
     payload.update({"exp": expire, "type": "refresh"})
@@ -68,7 +67,7 @@ def decode_token(token: str) -> dict[str, Any]:
 
 # ─── 字段级加密（用于 Instance.password 等敏感字段）──────────
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet  # noqa: E402
 
 
 def _get_fernet() -> Fernet:

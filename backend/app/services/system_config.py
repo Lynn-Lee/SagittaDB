@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,7 +81,7 @@ class SystemConfigService:
     @staticmethod
     async def _ensure_defaults(db: AsyncSession) -> None:
         """首次调用时初始化所有配置项默认值。"""
-        for key, (desc, group, sensitive, default) in CONFIG_DEFINITIONS.items():
+        for key, (desc, group, _sensitive, default) in CONFIG_DEFINITIONS.items():
             existing = await db.execute(select(SystemConfig).where(SystemConfig.config_key == key))
             if not existing.scalar_one_or_none():
                 db.add(SystemConfig(
@@ -214,7 +213,12 @@ class SystemConfigService:
     async def test_dingtalk(db: AsyncSession) -> dict:
         """发送钉钉测试消息。"""
         try:
-            import hmac, hashlib, base64, time, urllib.parse
+            import base64
+            import hashlib
+            import hmac
+            import time
+            import urllib.parse
+
             import httpx
 
             webhook = await SystemConfigService.get_value(db, "ding_webhook")

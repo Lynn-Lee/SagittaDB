@@ -4,10 +4,13 @@ Redis 引擎（Pack E）。
 安全：只允许执行白名单命令，禁止 FLUSHALL/CONFIG/SLAVEOF 等危险命令。
 """
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 from app.core.security import decrypt_field
 from app.engines.models import ResultSet, ReviewSet, SqlItem
+
 if TYPE_CHECKING:
     from app.models.instance import Instance
 
@@ -33,14 +36,14 @@ class RedisEngine:
     name = "RedisEngine"
     db_type = "redis"
 
-    def __init__(self, instance: "Instance") -> None:
+    def __init__(self, instance: Instance) -> None:
         self.instance = instance
 
     async def _get_client(self, db_name: str | None = None):
         try:
             import redis.asyncio as aioredis
         except ImportError:
-            raise ImportError("pip install redis[hiredis]")
+            raise ImportError("pip install redis[hiredis]") from None
         password = decrypt_field(self.instance.password) or None
         db_index = int(db_name) if db_name and db_name.isdigit() else 0
         return aioredis.Redis(
@@ -183,7 +186,8 @@ class RedisEngine:
                                                stagestatus=f"OK: {result}"))
                 except Exception as e:
                     review.rows.append(SqlItem(id=i+1, sql=line, errlevel=2, errormessage=str(e)))
-                    review.error = str(e); break
+                    review.error = str(e)
+                    break
             await r.aclose()
         except Exception as e:
             review.error = str(e)

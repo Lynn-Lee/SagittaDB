@@ -25,7 +25,6 @@ SQL 回滚辅助服务（Pack E）。
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import sqlglot
 import sqlglot.expressions as exp
@@ -257,8 +256,8 @@ class RollbackService:
             f"-host {host}",
             f"-port {port}",
             f"-user {user}",
-            f"-password '<密码>'",
-            f"-work-type rollback",
+            "-password '<密码>'",
+            "-work-type rollback",
             f"-start-datetime '{start_time}'",
             f"-stop-datetime '{stop_time}'",
             f"-sql-types {sql_types}",

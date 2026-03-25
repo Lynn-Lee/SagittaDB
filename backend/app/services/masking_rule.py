@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import logging
+
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AppException, ConflictException, NotFoundException
+from app.core.exceptions import AppException, NotFoundException
 from app.models.masking import MaskingRule, WorkflowTemplate
 
 logger = logging.getLogger(__name__)
@@ -133,9 +134,9 @@ class MaskingRuleService:
         """
         stmt = select(MaskingRule).where(
             and_(
-                MaskingRule.is_active == True,
+                MaskingRule.is_active,
                 (MaskingRule.instance_id == instance_id) |
-                (MaskingRule.instance_id == None),
+                (MaskingRule.instance_id is None),
                 (MaskingRule.db_name == db_name) |
                 (MaskingRule.db_name == "*"),
             )

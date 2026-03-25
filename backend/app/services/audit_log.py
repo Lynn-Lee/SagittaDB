@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from datetime import UTC
 
 from fastapi import Request
 from sqlalchemy import func, select
@@ -65,8 +65,9 @@ class AuditLogService:
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[int, list[OperationLog]]:
+        from datetime import datetime, timedelta
+
         from sqlalchemy import and_
-        from datetime import datetime, timezone, timedelta
 
         conditions = []
 
@@ -80,13 +81,13 @@ class AuditLogService:
             conditions.append(OperationLog.result == result)
         if date_start:
             try:
-                ds = datetime.fromisoformat(date_start).replace(tzinfo=timezone.utc)
+                ds = datetime.fromisoformat(date_start).replace(tzinfo=UTC)
                 conditions.append(OperationLog.created_at >= ds)
             except ValueError:
                 pass
         if date_end:
             try:
-                de = datetime.fromisoformat(date_end).replace(tzinfo=timezone.utc) + timedelta(days=1)
+                de = datetime.fromisoformat(date_end).replace(tzinfo=UTC) + timedelta(days=1)
                 conditions.append(OperationLog.created_at < de)
             except ValueError:
                 pass

@@ -1,9 +1,8 @@
 """
 实例管理 Pydantic Schema。
 """
-from typing import Optional
-from pydantic import BaseModel, field_validator
 
+from pydantic import BaseModel, field_validator
 
 # ─── SSH 隧道 ─────────────────────────────────────────────────
 
@@ -12,9 +11,9 @@ class TunnelCreate(BaseModel):
     host: str
     port: int = 22
     user: str
-    password: Optional[str] = None
-    private_key: Optional[str] = None
-    private_key_password: Optional[str] = None
+    password: str | None = None
+    private_key: str | None = None
+    private_key_password: str | None = None
 
     @field_validator("port")
     @classmethod
@@ -57,7 +56,7 @@ class InstanceCreate(BaseModel):
     db_name: str = ""
     show_db_name_regex: str = ""
     remark: str = ""
-    tunnel_id: Optional[int] = None
+    tunnel_id: int | None = None
     resource_group_ids: list[int] = []
     tags: dict[str, str] = {}
 
@@ -84,20 +83,20 @@ class InstanceCreate(BaseModel):
 
 
 class InstanceUpdate(BaseModel):
-    instance_name: Optional[str] = None
-    type: Optional[str] = None
-    host: Optional[str] = None
-    port: Optional[int] = None
-    user: Optional[str] = None
-    password: Optional[str] = None
-    is_ssl: Optional[bool] = None
-    db_name: Optional[str] = None
-    show_db_name_regex: Optional[str] = None
-    remark: Optional[str] = None
-    tunnel_id: Optional[int] = None
-    resource_group_ids: Optional[list[int]] = None
-    tags: Optional[dict[str, str]] = None
-    is_active: Optional[bool] = None
+    instance_name: str | None = None
+    type: str | None = None
+    host: str | None = None
+    port: int | None = None
+    user: str | None = None
+    password: str | None = None
+    is_ssl: bool | None = None
+    db_name: str | None = None
+    show_db_name_regex: str | None = None
+    remark: str | None = None
+    tunnel_id: int | None = None
+    resource_group_ids: list[int] | None = None
+    tags: dict[str, str] | None = None
+    is_active: bool | None = None
 
 
 class InstanceTagResponse(BaseModel):
@@ -121,7 +120,7 @@ class InstanceResponse(BaseModel):
     show_db_name_regex: str
     remark: str
     is_active: bool
-    tunnel_id: Optional[int]
+    tunnel_id: int | None
     resource_group_ids: list[int] = []
     tags: dict[str, str] = {}
     tenant_id: int
@@ -152,7 +151,7 @@ class ColumnInfo(BaseModel):
     column_name: str
     column_type: str
     is_nullable: str
-    column_default: Optional[str]
+    column_default: str | None
     column_comment: str = ""
     column_key: str = ""
 

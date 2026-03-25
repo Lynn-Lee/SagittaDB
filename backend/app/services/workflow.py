@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,11 +15,13 @@ from app.core.exceptions import AppException, NotFoundException
 from app.engines.registry import get_engine
 from app.models.instance import Instance
 from app.models.workflow import (
-    AuditStatus, SqlWorkflow, SqlWorkflowContent,
-    WorkflowAudit, WorkflowStatus,
+    SqlWorkflow,
+    SqlWorkflowContent,
+    WorkflowAudit,
+    WorkflowStatus,
 )
 from app.schemas.workflow import WorkflowCreateRequest
-from app.services.audit import AuditService, OP_EXECUTE
+from app.services.audit import OP_EXECUTE, AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +101,7 @@ class WorkflowService:
         # 如果有严重错误，拒绝提交
         error_count = getattr(review_set, 'error_count', 0)
         if error_count > 0 and not review_set.error:
-            raise AppException(f"SQL 预检查不通过，请修改后重新提交", code=400)
+            raise AppException("SQL 预检查不通过，请修改后重新提交", code=400)
 
         # 创建工单主记录
         workflow = SqlWorkflow(
@@ -158,7 +160,7 @@ class WorkflowService:
         查询工单列表。
         所有过滤条件均通过同一套 WHERE 子句构建，避免条件不一致问题。
         """
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta
 
         # ── 构建通用 WHERE 条件列表 ────────────────────────────
         conditions = []
@@ -187,14 +189,14 @@ class WorkflowService:
 
         if date_start:
             try:
-                ds = datetime.fromisoformat(date_start).replace(tzinfo=timezone.utc)
+                ds = datetime.fromisoformat(date_start).replace(tzinfo=UTC)
                 conditions.append(SqlWorkflow.created_at >= ds)
             except ValueError:
                 pass
 
         if date_end:
             try:
-                de = (datetime.fromisoformat(date_end).replace(tzinfo=timezone.utc)
+                de = (datetime.fromisoformat(date_end).replace(tzinfo=UTC)
                       + timedelta(days=1))
                 conditions.append(SqlWorkflow.created_at < de)
             except ValueError:
@@ -326,12 +328,12 @@ class WorkflowService:
             if wf.content:
                 wf.content.execute_result = result_json
             wf.status = WorkflowStatus.FINISH if not review_set.error else WorkflowStatus.EXCEPTION
-            wf.finish_time = datetime.now(timezone.utc)
+            wf.finish_time = datetime.now(UTC)
         except Exception as e:
             if wf.content:
                 wf.content.execute_result = json.dumps({"error": str(e)})
             wf.status = WorkflowStatus.EXCEPTION
-            wf.finish_time = datetime.now(timezone.utc)
+            wf.finish_time = datetime.now(UTC)
 
         # 写执行日志
         audit_result = await db.execute(

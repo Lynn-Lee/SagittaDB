@@ -4,13 +4,13 @@ PostgreSQL 引擎完整实现（Sprint 2）。
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import TYPE_CHECKING, Any
 
 import asyncpg
 import sqlglot
 import sqlglot.expressions as exp
-import logging
 
 from app.core.security import decrypt_field
 from app.engines.models import ResultSet, ReviewSet, SqlItem
@@ -25,7 +25,7 @@ class PgSQLEngine:
     name = "PgSQLEngine"
     db_type = "pgsql"
 
-    def __init__(self, instance: "Instance") -> None:
+    def __init__(self, instance: Instance) -> None:
         self.instance = instance
         self._host = instance.host
         self._port = instance.port
@@ -113,7 +113,7 @@ class PgSQLEngine:
                  ORDER BY relname"""
         rs = await self._raw_query(db_name=db_name, sql=sql, args=[])
         cols = rs.column_list
-        return [dict(zip(cols, row)) for row in rs.rows]
+        return [dict(zip(cols, row, strict=False)) for row in rs.rows]
 
     # ── 查询 ──────────────────────────────────────────────────
 
@@ -184,9 +184,8 @@ class PgSQLEngine:
             async with pool.acquire() as conn:
                 # 将 %(key)s 风格参数转换为 $1,$2 风格
                 exec_sql, args = self._convert_params(sql, parameters)
-                if limit_num > 0:
-                    if "limit" not in exec_sql.lower():
-                        exec_sql = f"{exec_sql.rstrip(';')} LIMIT {limit_num}"
+                if limit_num > 0 and "limit" not in exec_sql.lower():
+                    exec_sql = f"{exec_sql.rstrip(';')} LIMIT {limit_num}"
                 rows = await conn.fetch(exec_sql, *args)
                 if rows:
                     rs.column_list = list(rows[0].keys())
@@ -250,16 +249,15 @@ class PgSQLEngine:
         review = ReviewSet(full_sql=sql)
         try:
             pool = await self._get_pool(db_name)
-            async with pool.acquire() as conn:
-                async with conn.transaction():
-                    result = await conn.execute(sql)
-                    item = SqlItem(sql=sql, stagestatus="Execute Successfully")
-                    # result 格式如 "INSERT 0 1"
-                    try:
-                        item.affected_rows = int(result.split()[-1])
-                    except Exception:
-                        item.affected_rows = 0
-                    review.append(item)
+            async with pool.acquire() as conn, conn.transaction():
+                result = await conn.execute(sql)
+                item = SqlItem(sql=sql, stagestatus="Execute Successfully")
+                # result 格式如 "INSERT 0 1"
+                try:
+                    item.affected_rows = int(result.split()[-1])
+                except Exception:
+                    item.affected_rows = 0
+                review.append(item)
             review.is_executed = True
         except Exception as e:
             review.error = str(e)

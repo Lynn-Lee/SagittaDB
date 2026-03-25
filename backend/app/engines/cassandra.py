@@ -1,14 +1,17 @@
 """Engine skeleton - Sprint 2/4 will implement fully."""
 from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
+
 from app.engines.models import ResultSet, ReviewSet
+
 if TYPE_CHECKING:
     from app.models.instance import Instance
 
 class CassandraEngine:
     name = "SkeletonEngine"
     db_type = "cassandra"
-    def __init__(self, instance: "Instance") -> None:
+    def __init__(self, instance: Instance) -> None:
         self.instance = instance
     async def get_connection(self, db_name=None): raise NotImplementedError("Sprint 2/4")
     async def test_connection(self) -> ResultSet: return ResultSet(error="Sprint 2/4 实现")

@@ -2,8 +2,17 @@
 数据库实例相关模型：Instance、SshTunnel、InstanceTag。
 """
 from datetime import datetime
+
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -100,7 +109,7 @@ class Instance(BaseModel):
     )
 
     # 资源组关联（多对多，通过关联表）
-    resource_groups: Mapped[list["ResourceGroup"]] = relationship(  # type: ignore[name-defined]
+    resource_groups: Mapped[list["ResourceGroup"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "ResourceGroup",
         secondary="instance_resource_group",
         back_populates="instances",
