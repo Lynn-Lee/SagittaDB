@@ -9,7 +9,7 @@ import { resourceGroupApi } from '@/api/system'
 import { workflowApi } from '@/api/workflow'
 import apiClient from '@/api/client'
 
-const { Title } = Typography
+const { Title, Text } = Typography
 const { Option } = Select
 
 export default function WorkflowSubmit() {

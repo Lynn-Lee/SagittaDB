@@ -12,6 +12,7 @@ export interface UserInfo {
   display_name: string
   email: string
   is_superuser: boolean
+  totp_enabled: boolean
   permissions: string[]
   resource_groups: number[]
   tenant_id: number

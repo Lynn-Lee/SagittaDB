@@ -21,7 +21,7 @@ export default function WorkflowDetail() {
   const { data: wf, isLoading } = useQuery({
     queryKey: ['workflow', wfId],
     queryFn: () => workflowApi.get(wfId),
-    refetchInterval: wf => (wf?.status === 5 ? 2000 : false),
+    refetchInterval: (query) => (query.state.data?.status === 5 ? 2000 : false),
   })
 
   const auditMut = useMutation({
