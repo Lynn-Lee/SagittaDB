@@ -41,13 +41,13 @@ class TestWorkflowList:
 
     @pytest.mark.asyncio
     async def test_list_requires_auth(self, client: AsyncClient):
-        resp = await client.get("/api/v1/workflows/")
+        resp = await client.get("/api/v1/workflow/")
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_list_returns_paginated_result(self, client: AsyncClient):
         headers = await _get_admin_headers(client)
-        resp = await client.get("/api/v1/workflows/", headers=headers)
+        resp = await client.get("/api/v1/workflow/", headers=headers)
         assert resp.status_code == 200
         data = resp.json()
         # 支持两种分页格式：{"items": [], "total": n} 或 {"data": [], ...}
@@ -56,13 +56,13 @@ class TestWorkflowList:
     @pytest.mark.asyncio
     async def test_list_supports_status_filter(self, client: AsyncClient):
         headers = await _get_admin_headers(client)
-        resp = await client.get("/api/v1/workflows/?status=0", headers=headers)
+        resp = await client.get("/api/v1/workflow/?status=0", headers=headers)
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_list_supports_pagination(self, client: AsyncClient):
         headers = await _get_admin_headers(client)
-        resp = await client.get("/api/v1/workflows/?page=1&page_size=5", headers=headers)
+        resp = await client.get("/api/v1/workflow/?page=1&page_size=5", headers=headers)
         assert resp.status_code == 200
 
 
@@ -70,14 +70,14 @@ class TestWorkflowSubmit:
 
     @pytest.mark.asyncio
     async def test_submit_requires_auth(self, client: AsyncClient):
-        resp = await client.post("/api/v1/workflows/", json={})
+        resp = await client.post("/api/v1/workflow/", json={})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_submit_missing_fields_returns_422(self, client: AsyncClient):
         headers = await _get_admin_headers(client)
         resp = await client.post(
-            "/api/v1/workflows/",
+            "/api/v1/workflow/",
             json={"workflow_name": "incomplete"},
             headers=headers,
         )
@@ -88,7 +88,7 @@ class TestWorkflowSubmit:
         headers = await _get_admin_headers(client)
         instance_id = await _create_instance(client, headers)
 
-        resp = await client.post("/api/v1/workflows/", json={
+        resp = await client.post("/api/v1/workflow/", json={
             "workflow_name": "CI 测试工单 #1",
             "group_id": 1,
             "instance_id": instance_id,
@@ -108,7 +108,7 @@ class TestWorkflowSubmit:
         headers = await _get_admin_headers(client)
         instance_id = await _create_instance(client, headers)
 
-        create_resp = await client.post("/api/v1/workflows/", json={
+        create_resp = await client.post("/api/v1/workflow/", json={
             "workflow_name": "CI 详情测试",
             "group_id": 1,
             "instance_id": instance_id,
@@ -125,7 +125,7 @@ class TestWorkflowSubmit:
         wf_id = wf_data.get("id") or wf_data.get("workflow_id")
         assert wf_id
 
-        detail_resp = await client.get(f"/api/v1/workflows/{wf_id}/", headers=headers)
+        detail_resp = await client.get(f"/api/v1/workflow/{wf_id}/", headers=headers)
         assert detail_resp.status_code == 200
         detail = detail_resp.json()
         assert "status" in detail
@@ -134,7 +134,7 @@ class TestWorkflowSubmit:
     @pytest.mark.asyncio
     async def test_get_nonexistent_workflow_returns_404(self, client: AsyncClient):
         headers = await _get_admin_headers(client)
-        resp = await client.get("/api/v1/workflows/99999999/", headers=headers)
+        resp = await client.get("/api/v1/workflow/99999999/", headers=headers)
         assert resp.status_code == 404
 
 
@@ -145,7 +145,7 @@ class TestWorkflowSQLCheck:
         headers = await _get_admin_headers(client)
         instance_id = await _create_instance(client, headers)
 
-        resp = await client.post("/api/v1/workflows/check/", json={
+        resp = await client.post("/api/v1/workflow/check/", json={
             "instance_id": instance_id,
             "db_name": "test_db",
             "sql_content": "SELECT 1;",

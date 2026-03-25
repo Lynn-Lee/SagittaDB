@@ -1,7 +1,6 @@
 """
 pytest 测试配置与公共 fixtures。
 """
-import asyncio
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -18,14 +17,6 @@ from app.models.base import Base
 # 只替换 URL 最后一段（数据库名），避免误替换用户名部分
 _db_url_base, _, _ = settings.DATABASE_URL.rpartition("/")
 TEST_DATABASE_URL = f"{_db_url_base}/archery_test"
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """使用 session 级别的事件循环，避免每个测试重新创建。"""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture(scope="session")
