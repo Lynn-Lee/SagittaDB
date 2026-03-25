@@ -27,7 +27,8 @@ async def _create_instance(client: AsyncClient, headers: dict) -> int:
         "password": "root",
     }, headers=headers)
     if resp.status_code in (200, 201):
-        return resp.json()["id"]
+        body = resp.json()
+        return body.get("data", body)["id"]
     # 若已存在，尝试查询
     list_resp = await client.get("/api/v1/instances/?page_size=100", headers=headers)
     items = list_resp.json().get("items", list_resp.json() if isinstance(list_resp.json(), list) else [])
