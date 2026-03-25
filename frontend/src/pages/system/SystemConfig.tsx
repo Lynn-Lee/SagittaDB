@@ -152,7 +152,7 @@ export default function SystemConfig() {
       }
     })
     form.setFieldsValue(values)
-  }, [data])
+  }, [data, form])
 
   const saveMut = useMutation({
     mutationFn: async (values: Record<string, any>) => {
