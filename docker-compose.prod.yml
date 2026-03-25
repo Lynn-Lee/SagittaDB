@@ -1,0 +1,110 @@
+# ─── 生产环境 Docker Compose ──────────────────────────────────────────────────
+# 用法: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 与开发版的主要区别：
+#   - 不挂载代码目录（使用镜像内置代码）
+#   - uvicorn 使用 4 workers，不开 --reload
+#   - 所有服务设置资源限制
+#   - backend 增加 replicas: 2（需 Docker Swarm 或换 K8s）
+
+services:
+  postgres:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  redis:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+  backend:
+    # 生产镜像：不挂载本地代码
+    volumes: []
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+      LOG_LEVEL: WARNING
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  celery_worker:
+    volumes: []
+    command: celery -A app.celery_app worker --concurrency=8 -Q default,execute,notify,archive,monitor --loglevel=warning
+    environment:
+      APP_ENV: production
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  celery_beat:
+    volumes: []
+    environment:
+      APP_ENV: production
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  flower:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  frontend:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  prometheus:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  alertmanager:
+    restart: always
+
+  grafana:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
