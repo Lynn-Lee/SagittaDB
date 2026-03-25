@@ -1,0 +1,102 @@
+groups:
+  - name: db_instance_alerts
+    rules:
+      - alert: DBInstanceDown
+        expr: db_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "数据库实例不可用"
+          description: "实例 {{ $labels.instance_name }} ({{ $labels.db_type }}) 已离线超过 2 分钟"
+
+      - alert: MySQLHighConnectionUsage
+        expr: >
+          mysql_global_status_threads_connected
+          / mysql_global_variables_max_connections > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL 连接数使用率过高"
+          description: "实例 {{ $labels.instance_name }} 连接使用率 {{ $value | humanizePercentage }}"
+
+      - alert: MySQLConnectionCritical
+        expr: >
+          mysql_global_status_threads_connected
+          / mysql_global_variables_max_connections > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL 连接数接近上限"
+          description: "实例 {{ $labels.instance_name }} 连接使用率 {{ $value | humanizePercentage }}，即将耗尽"
+
+      - alert: MySQLSlowQueryHigh
+        expr: rate(mysql_global_status_slow_queries[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL 慢查询频率过高"
+          description: "实例 {{ $labels.instance_name }} 慢查询速率 {{ $value | humanize }}/s"
+
+      - alert: MySQLReplicationLag
+        expr: mysql_slave_status_seconds_behind_master > 30
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL 主从延迟过高"
+          description: "实例 {{ $labels.instance_name }} 主从延迟 {{ $value }}s"
+
+      - alert: MySQLReplicationBroken
+        expr: >
+          mysql_slave_status_slave_io_running != 1
+          or mysql_slave_status_slave_sql_running != 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL 主从复制中断"
+          description: "实例 {{ $labels.instance_name }} 复制线程异常"
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 内存使用率过高"
+          description: "实例 {{ $labels.instance_name }} 内存使用率 {{ $value | humanizePercentage }}"
+
+      - alert: RedisHitRateLow
+        expr: >
+          redis_keyspace_hits_total
+          / (redis_keyspace_hits_total + redis_keyspace_misses_total) < 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 命中率过低"
+          description: "实例 {{ $labels.instance_name }} 命中率 {{ $value | humanizePercentage }}"
+
+      - alert: PgConnectionHigh
+        expr: >
+          sum by(instance_id)(pg_stat_activity_count)
+          / pg_settings_max_connections > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL 连接数使用率过高"
+          description: "实例 {{ $labels.instance_name }} 连接使用率 {{ $value | humanizePercentage }}"
+
+      - alert: MongoReplicationLag
+        expr: mongodb_replset_member_replication_lag > 30
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MongoDB 副本集延迟过高"
+          description: "实例 {{ $labels.instance_name }} 复制延迟 {{ $value }}s"

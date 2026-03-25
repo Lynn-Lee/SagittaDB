@@ -1,0 +1,397 @@
+"""
+SQL 工单业务逻辑服务（Sprint 3）。
+"""
+from __future__ import annotations
+
+import json
+import logging
+from datetime import datetime, timezone
+
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.exceptions import AppException, NotFoundException
+from app.engines.registry import get_engine
+from app.models.instance import Instance
+from app.models.workflow import (
+    AuditStatus, SqlWorkflow, SqlWorkflowContent,
+    WorkflowAudit, WorkflowStatus,
+)
+from app.schemas.workflow import WorkflowCreateRequest
+from app.services.audit import AuditService, OP_EXECUTE
+
+logger = logging.getLogger(__name__)
+
+STATUS_DESC = {
+    0: "待审核",
+    1: "审批驳回",       # 人工驳回（原 AUTO_REVIEW_FAIL 复用）
+    2: "审核通过",
+    3: "定时执行",
+    4: "队列中",
+    5: "执行中",
+    6: "执行成功",
+    7: "执行异常",
+    8: "已取消",         # 人工取消（原 ABORT）
+    9: "自动审核不通过",  # 系统自动拒绝（预留，与人工驳回区分）
+}
+
+
+class WorkflowService:
+
+    @staticmethod
+    def _fmt_workflow(wf: SqlWorkflow, instance_name: str = "") -> dict:
+        """序列化工单为 dict（不含 SQL 内容）。"""
+        return {
+            "id": wf.id,
+            "workflow_name": wf.workflow_name,
+            "group_id": wf.group_id,
+            "group_name": wf.group_name,
+            "instance_id": wf.instance_id,
+            "instance_name": instance_name,      # 目标实例名称
+            "db_name": wf.db_name,
+            "syntax_type": wf.syntax_type,
+            "is_backup": wf.is_backup,
+            "engineer": wf.engineer,
+            "engineer_display": wf.engineer_display,
+            "status": wf.status,
+            "status_desc": STATUS_DESC.get(wf.status, "未知"),
+            "audit_auth_groups": wf.audit_auth_groups,
+            "run_date_start": wf.run_date_start.isoformat() if wf.run_date_start else None,
+            "run_date_end": wf.run_date_end.isoformat() if wf.run_date_end else None,
+            "finish_time": wf.finish_time.isoformat() if wf.finish_time else None,
+            "created_at": wf.created_at.isoformat() if wf.created_at else "",
+        }
+
+    # ── 创建工单 ──────────────────────────────────────────────
+
+    @staticmethod
+    async def create(
+        db: AsyncSession,
+        data: WorkflowCreateRequest,
+        operator: dict,
+    ) -> SqlWorkflow:
+        # 加载实例
+        inst_result = await db.execute(
+            select(Instance).where(Instance.id == data.instance_id)
+        )
+        inst = inst_result.scalar_one_or_none()
+        if not inst:
+            raise NotFoundException(f"实例 ID={data.instance_id} 不存在")
+
+        # 获取资源组审批链
+        from app.models.user import ResourceGroup
+        rg_result = await db.execute(
+            select(ResourceGroup).where(ResourceGroup.id == data.group_id)
+        )
+        rg = rg_result.scalar_one_or_none()
+        audit_auth_groups = str(data.group_id)  # 默认用资源组ID作审批链
+
+        # 自动 SQL 预检查
+        engine = get_engine(inst)
+        review_set = await engine.execute_check(data.db_name, data.sql_content)
+        review_json = json.dumps(
+            [{"sql": item.sql, "errlevel": item.errlevel, "msg": item.errormessage}
+             for item in (review_set.rows if hasattr(review_set, 'rows') else [])],
+            ensure_ascii=False
+        )
+
+        # 如果有严重错误，拒绝提交
+        error_count = getattr(review_set, 'error_count', 0)
+        if error_count > 0 and not review_set.error:
+            raise AppException(f"SQL 预检查不通过，请修改后重新提交", code=400)
+
+        # 创建工单主记录
+        workflow = SqlWorkflow(
+            workflow_name=data.workflow_name,
+            group_id=data.group_id,
+            group_name=rg.group_name if rg else str(data.group_id),
+            instance_id=data.instance_id,
+            db_name=data.db_name,
+            syntax_type=data.syntax_type,
+            is_backup=data.is_backup,
+            engineer=operator.get("username", ""),
+            engineer_display=operator.get("display_name", ""),
+            engineer_id=operator.get("id", 0),
+            status=WorkflowStatus.PENDING_REVIEW,
+            audit_auth_groups=audit_auth_groups,
+            run_date_start=data.run_date_start,
+            run_date_end=data.run_date_end,
+        )
+        db.add(workflow)
+        await db.flush()
+
+        # 创建内容记录
+        content = SqlWorkflowContent(
+            workflow_id=workflow.id,
+            sql_content=data.sql_content,
+            review_content=review_json,
+            execute_result="",
+        )
+        db.add(content)
+        await db.flush()
+
+        # 创建审批记录
+        audit_svc = AuditService(workflow=workflow)
+        await audit_svc.create_audit(db, operator)
+
+        logger.info("workflow_created: id=%s name=%s", workflow.id, data.workflow_name)
+        return workflow
+
+    # ── 查询工单列表 ──────────────────────────────────────────
+
+    @staticmethod
+    async def list_workflows(
+        db: AsyncSession,
+        user: dict,
+        status: int | None = None,
+        instance_id: int | None = None,
+        search: str | None = None,
+        engineer: str | None = None,
+        db_name: str | None = None,
+        date_start: str | None = None,
+        date_end: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[int, list[dict]]:
+        """
+        查询工单列表。
+        所有过滤条件均通过同一套 WHERE 子句构建，避免条件不一致问题。
+        """
+        from datetime import datetime, timezone, timedelta
+
+        # ── 构建通用 WHERE 条件列表 ────────────────────────────
+        conditions = []
+
+        # 权限控制：非超管、非审核员只能看自己的工单
+        if not user.get("is_superuser") and "sql_review" not in user.get("permissions", []):
+            conditions.append(SqlWorkflow.engineer_id == user["id"])
+
+        if status is not None:
+            conditions.append(SqlWorkflow.status == status)
+
+        if instance_id:
+            conditions.append(SqlWorkflow.instance_id == instance_id)
+
+        if search:
+            conditions.append(SqlWorkflow.workflow_name.ilike(f"%{search}%"))
+
+        if engineer:
+            conditions.append(
+                SqlWorkflow.engineer.ilike(f"%{engineer}%") |
+                SqlWorkflow.engineer_display.ilike(f"%{engineer}%")
+            )
+
+        if db_name:
+            conditions.append(SqlWorkflow.db_name.ilike(f"%{db_name}%"))
+
+        if date_start:
+            try:
+                ds = datetime.fromisoformat(date_start).replace(tzinfo=timezone.utc)
+                conditions.append(SqlWorkflow.created_at >= ds)
+            except ValueError:
+                pass
+
+        if date_end:
+            try:
+                de = (datetime.fromisoformat(date_end).replace(tzinfo=timezone.utc)
+                      + timedelta(days=1))
+                conditions.append(SqlWorkflow.created_at < de)
+            except ValueError:
+                pass
+
+        # ── 统计总数（同一套条件）────────────────────────────
+        count_stmt = select(func.count()).select_from(SqlWorkflow)
+        if conditions:
+            count_stmt = count_stmt.where(and_(*conditions))
+        total = (await db.execute(count_stmt)).scalar_one()
+
+        # ── 查询数据（JOIN Instance 获取实例名）──────────────
+        data_stmt = (
+            select(SqlWorkflow, Instance.instance_name)
+            .outerjoin(Instance, SqlWorkflow.instance_id == Instance.id)
+        )
+        if conditions:
+            data_stmt = data_stmt.where(and_(*conditions))
+        data_stmt = (
+            data_stmt
+            .order_by(SqlWorkflow.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        result = await db.execute(data_stmt)
+        rows = result.all()
+        return total, [WorkflowService._fmt_workflow(wf, inst_name or "") for wf, inst_name in rows]
+
+        # ── 工单详情 ──────────────────────────────────────────────
+
+    @staticmethod
+    async def get_detail(db: AsyncSession, workflow_id: int) -> dict:
+        result = await db.execute(
+            select(SqlWorkflow, Instance.instance_name)
+            .outerjoin(Instance, SqlWorkflow.instance_id == Instance.id)
+            .options(selectinload(SqlWorkflow.content))
+            .where(SqlWorkflow.id == workflow_id)
+        )
+        row = result.first()
+        if not row:
+            raise NotFoundException(f"工单 ID={workflow_id} 不存在")
+        wf, inst_name = row
+
+        detail = WorkflowService._fmt_workflow(wf, inst_name or "")
+        if wf.content:
+            detail["sql_content"] = wf.content.sql_content
+            detail["review_content"] = wf.content.review_content
+            detail["execute_result"] = wf.content.execute_result
+        else:
+            detail["sql_content"] = ""
+            detail["review_content"] = ""
+            detail["execute_result"] = ""
+
+        detail["audit_logs"] = await AuditService.get_audit_logs(db, workflow_id)
+        return detail
+
+    # ── 执行工单 ──────────────────────────────────────────────
+
+    @staticmethod
+    async def execute(
+        db: AsyncSession,
+        workflow_id: int,
+        operator: dict,
+        mode: str = "auto",
+    ) -> dict:
+        result = await db.execute(
+            select(SqlWorkflow)
+            .options(selectinload(SqlWorkflow.content))
+            .where(SqlWorkflow.id == workflow_id)
+        )
+        wf = result.scalar_one_or_none()
+        if not wf:
+            raise NotFoundException(f"工单 ID={workflow_id} 不存在")
+
+        if wf.status != WorkflowStatus.REVIEW_PASS:
+            raise AppException(
+                f"工单状态为【{STATUS_DESC.get(wf.status,'未知')}】，不能执行", code=400
+            )
+
+        # 更新为队列中
+        wf.status = WorkflowStatus.QUEUING
+        await db.commit()
+
+        # 提交 Celery 任务
+        try:
+            from app.tasks.execute_sql import execute_workflow_task
+            task = execute_workflow_task.delay(workflow_id, operator.get("id"))
+            return {
+                "msg": "已加入执行队列",
+                "task_id": task.id,
+                "workflow_id": workflow_id,
+            }
+        except Exception as e:
+            # Celery 不可用时降级为同步执行
+            logger.warning("celery_unavailable, executing sync: %s", str(e))
+            await WorkflowService._execute_sync(db, wf, operator)
+            return {"msg": "执行完成（同步模式）", "workflow_id": workflow_id}
+
+    @staticmethod
+    async def _execute_sync(
+        db: AsyncSession,
+        wf: SqlWorkflow,
+        operator: dict,
+    ) -> None:
+        """同步执行工单（Celery 不可用时的降级方案）。"""
+        from app.models.instance import Instance
+        inst_result = await db.execute(
+            select(Instance).where(Instance.id == wf.instance_id)
+        )
+        inst = inst_result.scalar_one_or_none()
+        if not inst:
+            wf.status = WorkflowStatus.EXCEPTION
+            await db.commit()
+            return
+
+        wf.status = WorkflowStatus.EXECUTING
+        await db.commit()
+
+        engine = get_engine(inst)
+        sql = wf.content.sql_content if wf.content else ""
+
+        try:
+            review_set = await engine.execute(db_name=wf.db_name, sql=sql)
+            result_json = json.dumps(
+                {"success": not review_set.error, "error": review_set.error or ""},
+                ensure_ascii=False
+            )
+            if wf.content:
+                wf.content.execute_result = result_json
+            wf.status = WorkflowStatus.FINISH if not review_set.error else WorkflowStatus.EXCEPTION
+            wf.finish_time = datetime.now(timezone.utc)
+        except Exception as e:
+            if wf.content:
+                wf.content.execute_result = json.dumps({"error": str(e)})
+            wf.status = WorkflowStatus.EXCEPTION
+            wf.finish_time = datetime.now(timezone.utc)
+
+        # 写执行日志
+        audit_result = await db.execute(
+            select(WorkflowAudit).where(WorkflowAudit.workflow_id == wf.id)
+        )
+        audit = audit_result.scalar_one_or_none()
+        if audit:
+            await AuditService._write_log(
+                db, audit.id, operator, OP_EXECUTE,
+                remark=f"执行完成，状态：{STATUS_DESC.get(wf.status,'未知')}"
+            )
+        await db.commit()
+
+    # ── SQL 预检查 ────────────────────────────────────────────
+
+    @staticmethod
+    async def check_sql(
+        db: AsyncSession,
+        instance_id: int,
+        db_name: str,
+        sql_content: str,
+    ) -> list[dict]:
+        inst_result = await db.execute(
+            select(Instance).where(Instance.id == instance_id)
+        )
+        inst = inst_result.scalar_one_or_none()
+        if not inst:
+            raise NotFoundException(f"实例 ID={instance_id} 不存在")
+
+        engine = get_engine(inst)
+        review_set = await engine.execute_check(db_name, sql_content)
+        rows = getattr(review_set, 'rows', [])
+        return [
+            {
+                "id": getattr(item, 'id', i+1),
+                "sql": getattr(item, 'sql', ''),
+                "errlevel": getattr(item, 'errlevel', 0),
+                "msg": getattr(item, 'errormessage', ''),
+                "stagestatus": getattr(item, 'stagestatus', ''),
+            }
+            for i, item in enumerate(rows)
+        ]
+
+    # ── 待我审核 ──────────────────────────────────────────────
+
+    @staticmethod
+    async def pending_for_me(
+        db: AsyncSession, user: dict, page: int = 1, page_size: int = 20
+    ) -> tuple[int, list[dict]]:
+        """获取需要当前用户审批的工单列表。"""
+        query = select(SqlWorkflow).where(
+            SqlWorkflow.status == WorkflowStatus.PENDING_REVIEW
+        )
+        if not user.get("is_superuser") and "sql_review" not in user.get("permissions", []):
+            return 0, []
+
+        total_q = await db.execute(select(func.count()).select_from(query.subquery()))
+        total = total_q.scalar_one()
+
+        query = query.order_by(SqlWorkflow.created_at.desc())
+        query = query.offset((page - 1) * page_size).limit(page_size)
+        result = await db.execute(query)
+        return total, [WorkflowService._fmt_workflow(w) for w in result.scalars().all()]

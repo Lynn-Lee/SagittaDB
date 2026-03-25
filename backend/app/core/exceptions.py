@@ -1,0 +1,66 @@
+"""
+统一异常处理：所有未捕获的异常都在这里统一格式化返回。
+"""
+import logging
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
+
+
+class AppException(Exception):
+    """业务异常基类。"""
+    def __init__(self, message: str, code: int = 400, detail: str | None = None):
+        self.message = message
+        self.code = code
+        self.detail = detail
+        super().__init__(message)
+
+
+class NotFoundException(AppException):
+    def __init__(self, message: str = "资源不存在"):
+        super().__init__(message, code=404)
+
+
+class ForbiddenException(AppException):
+    def __init__(self, message: str = "没有操作权限"):
+        super().__init__(message, code=403)
+
+
+class ConflictException(AppException):
+    def __init__(self, message: str = "资源已存在"):
+        super().__init__(message, code=409)
+
+
+class EngineException(AppException):
+    """数据库引擎操作异常。"""
+    def __init__(self, message: str, db_type: str = ""):
+        super().__init__(message, code=500, detail=f"引擎类型: {db_type}")
+
+
+def _err(code: int, message: str, detail: str | None = None) -> JSONResponse:
+    body: dict = {"status": code, "msg": message}
+    if detail:
+        body["detail"] = detail
+    return JSONResponse(status_code=code, content=body)
+
+
+def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppException)
+    async def app_exception_handler(request: Request, exc: AppException):
+        return _err(exc.code, exc.message, exc.detail)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        errors = "; ".join(
+            f"{'.'.join(str(loc) for loc in e['loc'])}: {e['msg']}"
+            for e in exc.errors()
+        )
+        return _err(422, "请求参数校验失败", errors)
+
+    @app.exception_handler(Exception)
+    async def generic_exception_handler(request: Request, exc: Exception):
+        # 标准 logging 用位置参数，不用关键字参数
+        logger.error("unhandled_exception: %s path=%s", str(exc), request.url.path)
+        return _err(500, "服务器内部错误", str(exc))
