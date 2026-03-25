@@ -48,7 +48,9 @@ class TestInstanceCRUD:
             headers=headers,
         )
         assert resp.status_code in (200, 201)
-        data = resp.json()
+        body = resp.json()
+        # Router returns {"status": 0, "data": {...}} wrapper
+        data = body.get("data", body)
         assert data["instance_name"] == "test-mysql-ci"
         assert data["db_type"] == "mysql"
         assert "id" in data
@@ -72,7 +74,8 @@ class TestInstanceCRUD:
             headers=headers,
         )
         assert create_resp.status_code in (200, 201)
-        instance_id = create_resp.json()["id"]
+        create_body = create_resp.json()
+        instance_id = create_body.get("data", create_body)["id"]
 
         get_resp = await client.get(
             f"/api/v1/instances/{instance_id}/",
@@ -106,7 +109,8 @@ class TestInstanceCRUD:
             headers=headers,
         )
         assert create_resp.status_code in (200, 201)
-        instance_id = create_resp.json()["id"]
+        create_body = create_resp.json()
+        instance_id = create_body.get("data", create_body)["id"]
 
         del_resp = await client.delete(
             f"/api/v1/instances/{instance_id}/",

@@ -100,8 +100,10 @@ class TestWorkflowSubmit:
         # 201 或 200 成功，400 表示实例无法连接（可接受），401/403/422 为失败
         assert resp.status_code in (200, 201, 400)
         if resp.status_code in (200, 201):
-            data = resp.json()
-            assert "id" in data or "workflow_id" in data
+            body = resp.json()
+            # Router returns {"status": 0, "data": {"id": ...}} wrapper
+            inner = body.get("data", body)
+            assert "id" in inner or "workflow_id" in inner
 
     @pytest.mark.asyncio
     async def test_get_workflow_detail(self, client: AsyncClient):
@@ -122,7 +124,9 @@ class TestWorkflowSubmit:
             pytest.skip(f"创建工单失败({create_resp.status_code})，跳过详情测试")
 
         wf_data = create_resp.json()
-        wf_id = wf_data.get("id") or wf_data.get("workflow_id")
+        # Router returns {"status": 0, "data": {"id": ...}} wrapper
+        inner = wf_data.get("data", wf_data)
+        wf_id = inner.get("id") or inner.get("workflow_id")
         assert wf_id
 
         detail_resp = await client.get(f"/api/v1/workflow/{wf_id}/", headers=headers)

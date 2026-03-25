@@ -33,6 +33,9 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Clear all rows so each test starts with a fresh DB (handles cross-run persistence)
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
 
     async_session = async_sessionmaker(engine, expire_on_commit=False)
 
