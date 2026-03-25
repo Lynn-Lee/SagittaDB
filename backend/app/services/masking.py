@@ -53,16 +53,18 @@ def extract_select_columns(sql: str, db_type: str) -> list[dict[str, Any]]:
     try:
         tree = sqlglot.parse_one(sql, dialect=dialect)
     except sqlglot.errors.ParseError as e:
-        logger.warning("sqlglot_parse_failed", sql=sql[:100], error=str(e))
+        logger.warning("sqlglot_parse_failed: sql=%s error=%s", sql[:100], str(e))
         return columns
 
     for i, col in enumerate(tree.find_all(exp.Column)):
+        parent = col.parent
+        alias = parent.alias if isinstance(parent, exp.Alias) else ""
         columns.append({
             "index": i,
             "field": col.name,
             "table": col.table or "*",
             "schema": col.db or "",
-            "alias": col.alias or col.name,
+            "alias": alias or col.name,
         })
 
     return columns
@@ -83,7 +85,7 @@ def extract_table_refs(sql: str, db_name: str, db_type: str = "mysql") -> list[d
     try:
         tree = sqlglot.parse_one(sql, dialect=dialect)
     except sqlglot.errors.ParseError as e:
-        logger.warning("sqlglot_table_ref_failed", sql=sql[:100], error=str(e))
+        logger.warning("sqlglot_table_ref_failed: sql=%s error=%s", sql[:100], str(e))
         return tables
 
     seen: set[tuple[str, str]] = set()

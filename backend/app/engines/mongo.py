@@ -143,6 +143,11 @@ class MongoEngine:
         """
         sql = sql.strip()
 
+        # 注入字符检测：分号/管道/反引号均视为非法格式
+        for ch in (';', '|', '`'):
+            if ch in sql:
+                raise ValueError("不支持的 MongoDB 查询格式")
+
         # 匹配 db.collection.find({...}) 或 db.collection.find({...}, {...})
         find_match = re.match(
             r"db\.(\w+)\.find\((.+?)(?:,\s*(\{.+\}))?\s*\)$",
