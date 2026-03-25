@@ -59,12 +59,17 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 - 管理员可强制要求特定用户开启 2FA
 - 二维码绑定 + 验证码确认激活流程
 
-**第三方登录（Pack F 待实现）**
-- LDAP 企业目录服务（优先级最高）
-- 钉钉扫码 OAuth
-- 飞书 OAuth
-- 企业微信 OAuth
-- OIDC 通用 SSO（对接 Keycloak/Okta/Azure AD）
+**第三方登录（Pack F，已完成）**
+
+| 方式 | 状态 | 说明 |
+|---|---|---|
+| LDAP 企业目录 | ✅ | ldap3 三步验证（bind→搜索→re-bind），自动 provision |
+| 钉钉扫码 OAuth | ✅ | DingTalk New API v2，scope=openid |
+| 飞书扫码 OAuth | ✅ | Feishu OIDC，复用 App ID/Secret |
+| 企业微信扫码 | ✅ | WeCom qrConnect，CorpID+AgentId |
+| OIDC 通用 SSO | ✅ | 支持 Keycloak/Okta/Azure AD，可配置3个端点 |
+
+所有第三方登录均支持用户自动创建（`auth_type` 标记来源），历史本地账号兼容迁移。
 
 #### 2.1.2 权限体系
 
@@ -304,13 +309,14 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 |---|---|
 | 基础设置 | 平台名称、访问地址、查询行数限制、SQL 审核行数限制 |
 | 邮件通知 | SMTP 主机/端口/账号/密码/SSL、发件人显示名 |
-| 钉钉通知 | Webhook 地址、签名密钥 |
-| 企业微信通知 | Webhook 地址 |
-| 飞书通知 | Webhook 地址 |
-| LDAP 认证 | 服务器地址/端口/Base DN/账号/密码/用户搜索过滤器/属性映射 |
+| 钉钉 | 通知 Webhook/签名密钥；登录 AppKey/AppSecret/启用开关 |
+| 企业微信 | 通知 Webhook；登录 CorpID/AgentId/AppSecret/启用开关 |
+| 飞书 | 通知 Webhook；App ID/App Secret；登录启用开关 |
+| LDAP 认证 | 服务器地址/Bind DN/密码/搜索 Base DN/用户过滤器/属性映射（uid/mail/cn） |
+| OIDC 登录 | Client ID/Secret、授权端点/Token 端点/UserInfo 端点、启用开关 |
 | AI 功能 | Anthropic API Key、模型选择 |
 
-所有敏感字段（密码/API Key）Fernet 加密存储，页面显示为 `******`，留空提交不覆盖原值。
+所有敏感字段（密码/API Key/Secret）Fernet 加密存储，页面显示为 `******`，留空提交不覆盖原值。
 
 #### 2.7.4 审计日志
 
@@ -436,12 +442,12 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 | Pack D | 数据脱敏、数据字典、工单模板、AI Text2SQL |
 | Pack E | 多引擎补全、数据归档、SQL 回滚辅助、通知服务 |
 | 品牌升级 | SagittaDB 品牌 UI 全面更新 |
+| Pack F | LDAP + 钉钉/飞书/企微/OIDC 第三方登录全部完成 |
 
 ### 5.2 待交付（v1.0-release）
 
 | 计划 | 内容 | 预估工期 |
 |---|---|---|
-| Pack F | LDAP + 钉钉/飞书/企微/OIDC 第三方登录 | 2周 |
 | Pack G | 单元测试、集成测试、性能测试、安全扫描 | 2周 |
 | Pack H | Helm Chart、CI/CD 流水线、生产环境配置 | 1周 |
 
@@ -463,7 +469,7 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 
 | 功能模块 | 验收标准 |
 |---|---|
-| 登录认证 | 账号密码登录成功，2FA 验证通过，token 自动刷新 |
+| 登录认证 | 账号密码登录成功，2FA 验证通过，token 自动刷新；第三方登录回调完成后可正常进入 dashboard |
 | 实例管理 | 11 种数据库类型可添加，测试连接返回版本信息 |
 | 在线查询 | SELECT 执行成功，脱敏规则生效，DDL 被拒绝 |
 | SQL 工单 | 完整流转（提交→审批→执行→成功），WebSocket 进度推送正常 |
@@ -485,5 +491,5 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 
 ---
 
-*SagittaDB 矢准数据 · PRD v2.0 · 2026-03-25*
+*SagittaDB 矢准数据 · PRD v2.1 · 2026-03-25（Pack F 第三方登录已完成，更新系统配置和交付计划章节）*
 *矢向数据，精准管控 · Full Engine Compatibility, End-to-End Observability*

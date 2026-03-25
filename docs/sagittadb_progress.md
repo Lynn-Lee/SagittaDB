@@ -2,7 +2,7 @@
 
 > **项目路径：** `/Users/lynn/SynologyDrive/SynologyDrive/Code/SagittaDB`
 > **重构基准：** Archery v1.14.0
-> **文档版本：** v1.2 · 2026-03-25
+> **文档版本：** v1.3 · 2026-03-25
 > **状态说明：** ✅ 已完成并验证 · 🔧 已开发待测试 · 📋 待开发
 
 ---
@@ -35,11 +35,12 @@
 | Pack C2 | 实例数据库注册管理 | ✅ | 100% |
 | Pack D | 数据脱敏、数据字典、工单模板、AI Text2SQL | ✅ | 100% |
 | Pack E | 多引擎补全、数据归档、SQL 回滚辅助、通知服务 | 🔧 | 85% |
-| Pack F | 第三方登录（LDAP/钉钉/飞书/企微/OIDC） | 📋 | 0% |
+| Pack F | 第三方登录（LDAP/钉钉/飞书/企微/OIDC） | ✅ | 100% |
 | Pack G | 全链路测试、性能测试、安全扫描 | 📋 | 0% |
+| Pack H | Helm Chart、CI/CD 流水线、生产环境配置 | 📋 | 0% |
 | 品牌升级 | SagittaDB 品牌 UI 全面更新 | ✅ | 100% |
 
-**总体完成度：约 78%**
+**总体完成度：约 87%**
 
 ---
 
@@ -190,22 +191,63 @@
 - 字体：系统字体栈 → Inter + Noto Sans SC + JetBrains Mono
 - Logo：六边形矢标 SVG（明暗双版）
 - 登录页：深色 Hero 风格（背景光晕 + 网格纹理 + 磨砂玻璃卡片）
-- 第三方登录入口：LDAP/OIDC/钉钉/飞书/企微（跳转预留，待后端接入）
+- 第三方登录入口：LDAP/OIDC/钉钉/飞书/企微（Pack F 已完整接入）
 - Favicon 更新
+
+### Pack F — 第三方登录集成 ✅
+
+**统一 OAuth2 登录架构**
+- 前端点击按钮 → 调后端 `GET /auth/{provider}/authorize/` 获取授权 URL → 重定向至平台
+- 平台回调 `GET /auth/{provider}/callback/` → 后端换取用户信息 → 自动 provision 本地用户
+- 回调成功后重定向至前端 `/oauth/callback?access_token=...&refresh_token=...`
+- Redis 存储 state（5分钟 TTL）防御 CSRF
+
+**LDAP 企业目录登录**
+- 三步验证：service bind → 用户搜索（支持自定义过滤器） → user re-bind 密码验证
+- 配置项：服务器地址、Bind DN/密码、搜索 Base DN、用户过滤器、属性映射（username/email/displayName）
+- 自动 provision：`auth_type='ldap'`，先按 external_id（DN）查，再按用户名兼容迁移
+- 依赖：`ldap3>=2.9.1`（Dockerfile + pyproject.toml 已同步）
+
+**钉钉扫码登录（DingTalk New API v2）**
+- 授权：`login.dingtalk.com/oauth2/auth`，scope=openid
+- 换 token：`api.dingtalk.com/v1.0/oauth2/userAccessToken`
+- 获取用户：`api.dingtalk.com/v1.0/contact/users/me`（x-acs-dingtalk-access-token）
+- 配置项：登录 AppKey / AppSecret / 启用开关（独立于通知 Webhook）
+
+**飞书扫码登录（Feishu OIDC）**
+- 授权：`accounts.feishu.cn/open-apis/authen/v1/authorize`
+- 换 token：Basic Auth + `open.feishu.cn/open-apis/authen/v1/oidc/access_token`
+- 获取用户：`open.feishu.cn/open-apis/authen/v1/user_info`
+- 复用系统配置中已有的 App ID / App Secret，新增独立登录启用开关
+
+**企业微信扫码登录（WeCom qrConnect）**
+- 授权：`open.work.weixin.qq.com/wwopen/sso/qrConnect`
+- 获取企业 token → code 换 UserId → 拉取用户详情（name/email/biz_mail）
+- 配置项：CorpID / 自建应用 AgentId / 应用 Secret / 启用开关
+
+**OIDC 通用 SSO**
+- 支持 Keycloak / Okta / Azure AD / 任意 OIDC Provider
+- 标准 authorization_code 流程，支持 userinfo endpoint 或 id_token payload 解码
+- 配置项：Client ID/Secret、授权端点、Token 端点、UserInfo 端点（独立 oidc 配置组）
+
+**系统配置扩展**
+- CONFIG_GROUPS 新增 `oidc` 分组
+- 钉钉配置组新增 3 项登录参数；飞书新增登录开关；企微新增 4 项登录参数
+- 共新增 11 个 system_config 配置项，全部可在 UI「系统配置」页面管理
+
+**前端交互**
+- 登录页各 OAuth 按钮点击时显示独立 loading 状态（⏳ 图标 + 边框高亮）
+- 新增 `/oauth/callback` 路由（OAuthCallbackPage）：自动读取 token → 调 /auth/me/ → 跳 dashboard
+- 错误时显示 oauth_error 并 3 秒后自动返回登录页
+- LDAP 登录表单保持原有方案（URL 参数 `?method=ldap` + 表单切换）
+
+**测试覆盖**
+- `test_ldap_auth.py`：5 个单元测试（未启用/配置缺失/用户不存在/密码错误/库未安装）
+- `test_oauth_auth.py`：8 个单元测试（不支持的 provider/各 provider 禁用/URL 构造/缺失配置）
 
 ---
 
-## 四、待开发功能（Pack F+）
-
-### Pack F — 第三方登录集成 📋
-
-| 功能 | 优先级 | 工作量 | 说明 |
-|---|---|---|---|
-| LDAP 登录 | P0 | 2天 | 企业内网必备，python-ldap 接入 |
-| 钉钉扫码登录 | P1 | 2天 | 需在钉钉开放平台注册应用 |
-| 飞书 OAuth 登录 | P1 | 2天 | 需注册飞书应用 |
-| 企业微信登录 | P2 | 2天 | 需企业微信管理员配置 |
-| OIDC 通用 SSO | P2 | 2天 | 对接 Keycloak/Okta/Azure AD |
+## 四、待开发功能（Pack G+）
 
 ### Pack G — 质量保障 📋
 
@@ -237,7 +279,7 @@
 | Oracle/MSSQL/Cassandra/ES 引擎未全量验证 | 中 | 骨架已实现，需真实环境测试 |
 | Alembic 迁移文件需手动执行 | 低 | 新建表均有对应 SQL 脚本，需补充 CI 自动执行 |
 | totp_secret 字段已扩展至 500 | 已修复 | 原 100 字节不足，已通过 ALTER TABLE 修复 |
-| 第三方登录按钮点击无实际跳转 | 中 | 前端入口已预留，后端 OAuth 待 Pack F 实现 |
+| OAuth 回调 URL 需与各平台后台配置一致 | 低 | 部署时需在钉钉/飞书/企微管理后台填写正确的 callback URL |
 
 ---
 
@@ -257,6 +299,8 @@
 | packE_request_import | workflow.py router 缺少 Request import |
 | brand_hotfix1~2 | LoginPage login 方法不存在、/auth/me/ token 时序问题 |
 | brand_hotfix_password | bcrypt 哈希算法 hexdigest→base64 修正 |
+| packF_ldap | LDAP 三步验证 + 用户自动 provision，ldap3 依赖接入 |
+| packF_oauth | 钉钉/飞书/企微/OIDC OAuth2 全流程，Redis state CSRF 防护，OAuthCallbackPage |
 
 ---
 
@@ -272,7 +316,10 @@
 | 归档实现 | 纯 Python 通过引擎层执行，不依赖 pt-archiver，各数据库分批语法独立适配 |
 | Binlog 回滚 | 重定位为"SQL 回滚辅助"，my2sql 做命令生成器而非直接执行 |
 | 品牌主色 | #165DFF（Space Tech Blue，ARCO Design 标准色） |
+| OAuth2 回调架构 | 后端处理 code 交换 → JWT → 重定向前端，前端无需保存 client_secret，安全且符合 SPA 最佳实践 |
+| LDAP 密码验证 | 使用 user re-bind 方式（而非 compare），兼容更多 LDAP Server |
+| OAuth state 存储 | Redis（5min TTL），优于 Session/DB，天然支持多实例无状态部署 |
 
 ---
 
-*文档最后更新：2026-03-25 · SagittaDB v1.0-beta*
+*文档最后更新：2026-03-25 · SagittaDB v1.0-beta（Pack F 已完成）*

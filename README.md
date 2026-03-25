@@ -70,11 +70,11 @@ SagittaDB/
 | Pack D | 数据脱敏、数据字典、工单模板、AI Text2SQL | ✅ 100% |
 | Pack E | 多引擎补全、数据归档、SQL 回滚、通知服务 | 🔧 85% |
 | 品牌升级 | SagittaDB 品牌 UI 全面更新 | ✅ 100% |
-| Pack F | 第三方登录（LDAP/钉钉/飞书/企微/OIDC） | 📋 待开发 |
+| Pack F | 第三方登录（LDAP/钉钉/飞书/企微/OIDC） | ✅ 100% |
 | Pack G | 全链路测试、性能测试、安全扫描 | 📋 待开发 |
 | Pack H | Helm Chart、CI/CD、生产环境配置 | 📋 待开发 |
 
-**总体完成度：约 78%**
+**总体完成度：约 87%**
 
 详细进度请见 [docs/sagittadb_progress.md](docs/sagittadb_progress.md)
 产品需求文档请见 [docs/sagittadb_prd.md](docs/sagittadb_prd.md)
