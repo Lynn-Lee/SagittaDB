@@ -1,10 +1,13 @@
 """
-认证路由：登录、登出、Token 刷新、2FA、当前用户信息。
+认证路由：本地登录、LDAP、第三方 OAuth2（钉钉/飞书/企微/OIDC）、2FA、Token 管理。
 """
 import logging
 import time
+import uuid
+from urllib.parse import quote as urllib_quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +30,9 @@ from app.schemas.auth import (
     TokenResponse,
     TwoFAVerifyRequest,
 )
+from app.services import oauth_auth
 from app.services.ldap_auth import LdapAuthService
+from app.services.system_config import SystemConfigService
 from app.services.user import UserService
 
 logger = logging.getLogger(__name__)
@@ -186,3 +191,91 @@ async def get_me(user=Depends(current_user), db: AsyncSession = Depends(get_db))
 async def change_password(data: ChangePasswordRequest, user=Depends(current_user), db: AsyncSession = Depends(get_db)):
     await UserService.change_password(db, user["id"], data.old_password, data.new_password)
     return {"status": 0, "msg": "密码已修改，请重新登录"}
+
+
+# ── 第三方 OAuth2 登录（Pack F）──────────────────────────────
+
+@router.get("/{provider}/authorize/", summary="获取第三方登录授权 URL")
+async def oauth_authorize(
+    provider: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(get_redis),
+):
+    """
+    返回指定 provider 的授权跳转 URL。
+    支持：dingtalk / feishu / wecom / oidc
+    """
+    if provider not in oauth_auth.SUPPORTED_PROVIDERS:
+        raise HTTPException(status_code=404, detail=f"不支持的登录方式: {provider}")
+
+    state = str(uuid.uuid4())
+    await redis.setex(f"oauth_state:{state}", 300, provider)
+
+    # 回调 URL 指向本后端 callback 端点
+    callback_url = str(request.base_url).rstrip("/") + f"/api/v1/auth/{provider}/callback/"
+
+    try:
+        url = await oauth_auth.get_authorize_url(provider, db, callback_url, state)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return {"url": url, "state": state}
+
+
+@router.get("/{provider}/callback/", summary="第三方登录回调（由平台跳回）", include_in_schema=False)
+async def oauth_callback(
+    provider: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(get_redis),
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
+    """
+    接收平台 OAuth2 回调，验证 state、换取用户信息，生成 JWT 后重定向到前端。
+    成功：→ {platform_url}/oauth/callback?access_token=...&refresh_token=...
+    失败：→ {platform_url}/login?oauth_error=...
+    """
+    platform_url = (await SystemConfigService.get_value(db, "platform_url")).rstrip("/")
+    if not platform_url:
+        platform_url = "http://localhost"
+
+    def _redirect_error(msg: str) -> RedirectResponse:
+        return RedirectResponse(
+            f"{platform_url}/login?oauth_error={urllib_quote(msg)}", status_code=302
+        )
+
+    if error:
+        return _redirect_error(f"用户取消或平台返回错误: {error}")
+
+    if not code or not state:
+        return _redirect_error("回调参数缺失")
+
+    # 验证 CSRF state
+    stored_provider = await redis.get(f"oauth_state:{state}")
+    if not stored_provider or stored_provider != provider:
+        return _redirect_error("state 验证失败，请重新登录")
+    await redis.delete(f"oauth_state:{state}")
+
+    callback_url = str(request.base_url).rstrip("/") + f"/api/v1/auth/{provider}/callback/"
+
+    try:
+        user = await oauth_auth.handle_callback(provider, db, code, callback_url)
+    except Exception as e:
+        logger.warning("oauth_callback_error: provider=%s error=%s", provider, str(e))
+        return _redirect_error(str(e))
+
+    if not user.is_active:
+        return _redirect_error("账号已被禁用，请联系管理员")
+
+    payload = {"sub": str(user.id), "username": user.username, "tenant_id": user.tenant_id}
+    access_token = create_access_token(payload)
+    refresh_token = create_refresh_token({"sub": str(user.id), "tenant_id": user.tenant_id})
+
+    logger.info("oauth_login: provider=%s username=%s", provider, user.username)
+    return RedirectResponse(
+        f"{platform_url}/oauth/callback?access_token={access_token}&refresh_token={refresh_token}",
+        status_code=302,
+    )

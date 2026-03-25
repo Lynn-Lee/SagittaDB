@@ -4,6 +4,7 @@ import { Spin } from 'antd'
 import AuthGuard from '@/components/common/AuthGuard'
 
 const LoginPage            = lazy(() => import('@/pages/auth/LoginPage'))
+const OAuthCallbackPage    = lazy(() => import('@/pages/auth/OAuthCallbackPage'))
 const ProfilePage          = lazy(() => import('@/pages/auth/ProfilePage'))
 const MainLayout           = lazy(() => import('@/components/layout/MainLayout'))
 const Dashboard            = lazy(() => import('@/pages/dashboard/DashboardPage'))
@@ -39,6 +40,7 @@ export default function App() {
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/" element={<AuthGuard><MainLayout /></AuthGuard>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard"            element={<Dashboard />} />

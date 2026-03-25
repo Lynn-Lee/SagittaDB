@@ -22,29 +22,34 @@ const SagittaLogo = () => (
 
 // ── 第三方登录按钮 ──────────────────────────────────────────
 const OAuthBtn = ({
-  icon, label, color, onClick,
-}: { icon: React.ReactNode; label: string; color: string; onClick: () => void }) => (
-  <Tooltip title={`使用 ${label} 登录`} placement="top">
-    <button onClick={onClick} style={{
+  icon, label, color, loading, onClick,
+}: { icon: React.ReactNode; label: string; color: string; loading?: boolean; onClick: () => void }) => (
+  <Tooltip title={loading ? '正在跳转…' : `使用 ${label} 登录`} placement="top">
+    <button onClick={onClick} disabled={loading} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-      padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-      background: 'rgba(255,255,255,0.05)',
-      border: `1px solid rgba(255,255,255,0.08)`,
+      padding: '10px 14px', borderRadius: 10, cursor: loading ? 'not-allowed' : 'pointer',
+      background: loading ? `${color}20` : 'rgba(255,255,255,0.05)',
+      border: loading ? `1px solid ${color}60` : `1px solid rgba(255,255,255,0.08)`,
       transition: 'all 0.2s',
       flex: 1,
+      opacity: loading ? 0.7 : 1,
     }}
     onMouseEnter={e => {
-      (e.currentTarget as HTMLElement).style.background = `${color}18`
-      ;(e.currentTarget as HTMLElement).style.borderColor = `${color}50`
+      if (!loading) {
+        (e.currentTarget as HTMLElement).style.background = `${color}18`
+        ;(e.currentTarget as HTMLElement).style.borderColor = `${color}50`
+      }
     }}
     onMouseLeave={e => {
-      (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'
-      ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)'
+      if (!loading) {
+        (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'
+        ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)'
+      }
     }}>
-      <span style={{ fontSize: 20 }}>{icon}</span>
+      <span style={{ fontSize: 20 }}>{loading ? '⏳' : icon}</span>
       <span style={{
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 10, color: 'rgba(255,255,255,0.45)',
+        fontSize: 10, color: loading ? color : 'rgba(255,255,255,0.45)',
         letterSpacing: '0.5px',
       }}>{label}</span>
     </button>
@@ -57,7 +62,10 @@ export default function LoginPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { setTokens, setUser } = useAuthStore()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [oauthLoading, setOauthLoading] = useState('')
+  const [error, setError] = useState(
+    searchParams.get('oauth_error') ? decodeURIComponent(searchParams.get('oauth_error')!) : ''
+  )
 
   const method = searchParams.get('method')
   const isLdap = method === 'ldap'
@@ -101,19 +109,21 @@ export default function LoginPage() {
     }
   }
 
-  const handleOAuth = (type: string) => {
+  const handleOAuth = async (type: string) => {
     if (type === 'ldap') {
       setSearchParams({ method: 'ldap' })
+      setError('')
       return
     }
-    // 其他第三方登录（待实现）
-    const routes: Record<string, string> = {
-      oidc:    '/login?method=oidc',
-      dingtalk:'/login?method=dingtalk',
-      feishu:  '/login?method=feishu',
-      wecom:   '/login?method=wecom',
+    setOauthLoading(type)
+    setError('')
+    try {
+      const resp = await apiClient.get(`/auth/${type}/authorize/`)
+      window.location.href = resp.data.url
+    } catch (e: any) {
+      setError(e.response?.data?.detail || `${type} 登录暂不可用，请联系管理员开启`)
+      setOauthLoading('')
     }
-    window.location.href = routes[type] || '/login'
   }
 
   return (
@@ -329,11 +339,11 @@ export default function LoginPage() {
             </Divider>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <OAuthBtn icon="🏢" label="LDAP"    color="#60A5FA" onClick={() => handleOAuth('ldap')} />
-              <OAuthBtn icon="🔑" label="OIDC"    color="#A78BFA" onClick={() => handleOAuth('oidc')} />
-              <OAuthBtn icon="🔔" label="钉钉"    color="#1677FF" onClick={() => handleOAuth('dingtalk')} />
-              <OAuthBtn icon="🦅" label="飞书"    color="#00B42A" onClick={() => handleOAuth('feishu')} />
-              <OAuthBtn icon="💼" label="企微"    color="#07C160" onClick={() => handleOAuth('wecom')} />
+              <OAuthBtn icon="🏢" label="LDAP"  color="#60A5FA" onClick={() => handleOAuth('ldap')} />
+              <OAuthBtn icon="🔑" label="OIDC"  color="#A78BFA" loading={oauthLoading === 'oidc'}     onClick={() => handleOAuth('oidc')} />
+              <OAuthBtn icon="🔔" label="钉钉"  color="#1677FF" loading={oauthLoading === 'dingtalk'} onClick={() => handleOAuth('dingtalk')} />
+              <OAuthBtn icon="🦅" label="飞书"  color="#00B42A" loading={oauthLoading === 'feishu'}   onClick={() => handleOAuth('feishu')} />
+              <OAuthBtn icon="💼" label="企微"  color="#07C160" loading={oauthLoading === 'wecom'}    onClick={() => handleOAuth('wecom')} />
             </div>
           </>
         )}

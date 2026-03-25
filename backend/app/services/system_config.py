@@ -17,13 +17,14 @@ logger = logging.getLogger(__name__)
 
 # ── 配置分组定义 ──────────────────────────────────────────────
 CONFIG_GROUPS = {
-    "basic": "基础设置",
-    "mail": "邮件通知",
-    "dingtalk": "钉钉通知",
-    "wecom": "企业微信通知",
-    "feishu": "飞书通知",
-    "ldap": "LDAP 认证",
-    "ai": "AI 功能",
+    "basic":    "基础设置",
+    "mail":     "邮件通知",
+    "dingtalk": "钉钉",
+    "wecom":    "企业微信",
+    "feishu":   "飞书",
+    "ldap":     "LDAP 认证",
+    "oidc":     "OIDC 登录",
+    "ai":       "AI 功能",
 }
 
 # 配置项定义：key → (description, group, is_sensitive, default)
@@ -44,19 +45,27 @@ CONFIG_DEFINITIONS: dict[str, tuple[str, str, bool, str]] = {
     "mail_from":            ("发件人显示名",         "mail",     False, "数据库管理平台"),
 
     # ── 钉钉 ──────────────────────────────────────────────────
-    "ding_webhook":         ("默认Webhook地址",      "dingtalk", True,  ""),
-    "ding_secret":          ("加签密钥",             "dingtalk", True,  ""),
+    "ding_webhook":         ("通知Webhook地址",      "dingtalk", True,  ""),
+    "ding_secret":          ("通知加签密钥",         "dingtalk", True,  ""),
     "ding_enabled":         ("启用钉钉通知",         "dingtalk", False, "false"),
+    "ding_login_app_id":    ("登录 AppKey/ClientId", "dingtalk", False, ""),
+    "ding_login_app_secret":("登录 AppSecret",       "dingtalk", True,  ""),
+    "ding_login_enabled":   ("启用钉钉扫码登录",     "dingtalk", False, "false"),
 
     # ── 企业微信 ──────────────────────────────────────────────
-    "wecom_webhook":        ("Webhook地址",          "wecom",    True,  ""),
-    "wecom_enabled":        ("启用企微通知",         "wecom",    False, "false"),
+    "wecom_webhook":          ("通知Webhook地址",      "wecom",  True,  ""),
+    "wecom_enabled":          ("启用企微通知",         "wecom",  False, "false"),
+    "wecom_login_corp_id":    ("登录 企业CorpID",      "wecom",  False, ""),
+    "wecom_login_agent_id":   ("登录 自建应用AgentId", "wecom",  False, ""),
+    "wecom_login_app_secret": ("登录 自建应用Secret",  "wecom",  True,  ""),
+    "wecom_login_enabled":    ("启用企微扫码登录",     "wecom",  False, "false"),
 
     # ── 飞书 ──────────────────────────────────────────────────
-    "feishu_webhook":       ("Webhook地址",          "feishu",   True,  ""),
-    "feishu_app_id":        ("App ID（可选）",       "feishu",   False, ""),
-    "feishu_app_secret":    ("App Secret（可选）",   "feishu",   True,  ""),
+    "feishu_webhook":       ("通知Webhook地址",      "feishu",   True,  ""),
+    "feishu_app_id":        ("App ID",              "feishu",   False, ""),
+    "feishu_app_secret":    ("App Secret",          "feishu",   True,  ""),
     "feishu_enabled":       ("启用飞书通知",         "feishu",   False, "false"),
+    "feishu_login_enabled": ("启用飞书扫码登录",     "feishu",   False, "false"),
 
     # ── LDAP ──────────────────────────────────────────────────
     "ldap_enabled":         ("启用LDAP认证",         "ldap",     False, "false"),
@@ -68,6 +77,14 @@ CONFIG_DEFINITIONS: dict[str, tuple[str, str, bool, str]] = {
     "ldap_attr_username":   ("用户名属性",           "ldap",     False, "uid"),
     "ldap_attr_email":      ("邮箱属性",             "ldap",     False, "mail"),
     "ldap_attr_display":    ("显示名属性",           "ldap",     False, "cn"),
+
+    # ── OIDC（通用 OpenID Connect）───────────────────────────
+    "oidc_enabled":                 ("启用 OIDC 登录",       "oidc", False, "false"),
+    "oidc_client_id":               ("Client ID",            "oidc", False, ""),
+    "oidc_client_secret":           ("Client Secret",        "oidc", True,  ""),
+    "oidc_authorization_endpoint":  ("授权端点 URL",          "oidc", False, ""),
+    "oidc_token_endpoint":          ("Token 端点 URL",        "oidc", False, ""),
+    "oidc_userinfo_endpoint":       ("UserInfo 端点 URL",     "oidc", False, ""),
 
     # ── AI 配置 ───────────────────────────────────────────────
     "ai_enabled":           ("启用 AI 功能",          "ai",       False, "false"),
