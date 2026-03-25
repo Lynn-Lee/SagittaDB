@@ -1,0 +1,30 @@
+[run]
+source = app
+omit =
+    app/migrations/*
+    app/main.py
+    tests/*
+    */__init__.py
+branch = true
+parallel = false
+
+[report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines =
+    # 排除调试和不可达分支
+    pragma: no cover
+    def __repr__
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    \.\.\.
+    pass
+
+[html]
+directory = htmlcov
+title = SagittaDB Coverage Report
+
+[xml]
+output = coverage.xml

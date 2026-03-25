@@ -208,7 +208,7 @@ class RollbackService:
                 })
 
             # ── DDL ──────────────────────────────────────────
-            elif isinstance(stmt, (exp.Create, exp.Drop, exp.AlterTable)):
+            elif isinstance(stmt, (exp.Create, exp.Drop, exp.Alter)):
                 results.append({
                     "original": str(stmt),
                     "reverse": "-- DDL 操作需要人工处理，无法自动生成逆向 SQL\n-- 建议：执行前先备份表结构和数据",

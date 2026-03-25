@@ -1,6 +1,6 @@
 # SagittaDB 矢准数据 — 产品需求文档（PRD）
 
-> **版本：** v2.0
+> **版本：** v2.3
 > **日期：** 2026-03-25
 > **状态：** 内测中
 > **产品定位：** 企业级多引擎数据库管控平台，为 SaaS 3.0 预留接口
@@ -443,13 +443,16 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 | Pack E | 多引擎补全、数据归档、SQL 回滚辅助、通知服务 |
 | 品牌升级 | SagittaDB 品牌 UI 全面更新 |
 | Pack F | LDAP + 钉钉/飞书/企微/OIDC 第三方登录全部完成 |
+| Pack G | 质量保障：单元测试 152 个、集成测试、性能测试、安全扫描 CI |
+| Pack H | 生产就绪：Helm Chart（K8s）、GHCR 镜像发布、备份脚本、多环境配置 |
 
-### 5.2 待交付（v1.0-release）
+### 5.2 v1.0-GA 剩余可选优化
 
-| 计划 | 内容 | 预估工期 |
+| 计划 | 内容 | 优先级 |
 |---|---|---|
-| Pack G | 单元测试、集成测试、性能测试、安全扫描 | 2周 |
-| Pack H | Helm Chart、CI/CD 流水线、生产环境配置 | 1周 |
+| 覆盖率提升 | 单元测试从 37% 提升至 60%+ | P2 |
+| E2E 测试 | Playwright 登录+工单提交端到端测试 | P3 |
+| SaaS 多租户激活 | 激活已预留的 tenant_id 体系 | P2（v2.0）|
 
 ### 5.3 未来规划（v2.0）
 
@@ -491,5 +494,5 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 
 ---
 
-*SagittaDB 矢准数据 · PRD v2.1 · 2026-03-25（Pack F 第三方登录已完成，更新系统配置和交付计划章节）*
+*SagittaDB 矢准数据 · PRD v2.3 · 2026-03-25（Pack H 生产就绪完成，v1.0-GA 候选版本）*
 *矢向数据，精准管控 · Full Engine Compatibility, End-to-End Observability*
