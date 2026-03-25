@@ -6,8 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.notify import NotifyService, STATUS_DESC, STATUS_NOTICE
-
+from app.services.notify import STATUS_DESC, STATUS_NOTICE, NotifyService
 
 # ── 辅助 Mock ────────────────────────────────────────────────
 
@@ -72,9 +71,9 @@ class TestDingTalkSend:
             "ding_secret": "",
         })
         with patch("httpx.AsyncClient",
-                   return_value=_make_client_mock({"errcode": 60020, "errmsg": "token not found"})):
-            with pytest.raises(Exception, match="钉钉通知失败"):
-                await svc._send_dingtalk("t", "c")
+                   return_value=_make_client_mock({"errcode": 60020, "errmsg": "token not found"})), \
+             pytest.raises(Exception, match="钉钉通知失败"):
+            await svc._send_dingtalk("t", "c")
 
 
 # ── 企业微信通知 ──────────────────────────────────────────────
@@ -97,9 +96,9 @@ class TestWecomSend:
             "wecom_webhook": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx",
         })
         with patch("httpx.AsyncClient",
-                   return_value=_make_client_mock({"errcode": 95, "errmsg": "token invalid"})):
-            with pytest.raises(Exception, match="企微通知失败"):
-                await svc._send_wecom("t", "c")
+                   return_value=_make_client_mock({"errcode": 95, "errmsg": "token invalid"})), \
+             pytest.raises(Exception, match="企微通知失败"):
+            await svc._send_wecom("t", "c")
 
 
 # ── 飞书通知 ──────────────────────────────────────────────────

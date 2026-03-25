@@ -20,11 +20,9 @@ SagittaDB 性能测试（Pack G P1）。
 """
 from __future__ import annotations
 
-import json
 import random
 
 from locust import HttpUser, TaskSet, between, task
-
 
 # ── 共享登录凭证 ──────────────────────────────────────────────
 

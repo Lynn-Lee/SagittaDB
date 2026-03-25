@@ -2,8 +2,6 @@
 SQL 回滚辅助服务单元测试（Pack E/G）。
 覆盖 sqlglot 逆向 SQL 生成、my2sql 命令生成、PG WAL 查询。
 """
-import pytest
-
 from app.services.rollback import RollbackService
 
 

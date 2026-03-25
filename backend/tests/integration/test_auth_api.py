@@ -5,7 +5,6 @@
 import pytest
 from httpx import AsyncClient
 
-
 # ── 辅助：初始化管理员 ────────────────────────────────────────
 
 async def _init_and_login(client: AsyncClient) -> tuple[str, str]:

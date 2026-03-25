@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.models.workflow import WorkflowStatus, WorkflowType, AuditStatus
+from app.models.workflow import AuditStatus, WorkflowStatus, WorkflowType
 from app.services.workflow import WorkflowService
 
 
@@ -32,7 +32,7 @@ class TestWorkflowStatus:
     def test_int_comparison_works(self):
         """整数枚举应与整数直接可比（替代 1.x 字符串比较）。"""
         assert WorkflowStatus.PENDING_REVIEW == 0
-        assert 0 == WorkflowStatus.PENDING_REVIEW
+        assert WorkflowStatus.PENDING_REVIEW == 0
         assert WorkflowStatus.FINISH != WorkflowStatus.EXCEPTION
 
 
@@ -150,7 +150,7 @@ class TestCheckSql:
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             await WorkflowService.check_sql(
                 db=mock_db,
                 instance_id=99999,

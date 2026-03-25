@@ -100,18 +100,6 @@ async def auth_headers(client: AsyncClient) -> dict[str, str]:
     """
     在测试 DB 中创建 admin 用户并返回 Authorization 头，供集成测试使用。
     """
-    from app.core.security import hash_password
-    from app.models.user import Users
-
-    # 直接往测试 DB 插入 admin 用户
-    async_session = async_sessionmaker(
-        client.transport.app.state.engine  # type: ignore[attr-defined]
-        if hasattr(getattr(client, "transport", None), "app")
-        and hasattr(getattr(client.transport, "app", None), "state")
-        else None,
-        expire_on_commit=False,
-    ) if False else None  # fallback: use login endpoint
-
     # 先尝试登录，若失败则通过 API /system/init 初始化
     resp = await client.post("/api/v1/auth/login/", json={
         "username": "admin", "password": "Admin@2024!",
