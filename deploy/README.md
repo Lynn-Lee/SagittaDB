@@ -1,86 +1,39 @@
-# Deploy — 部署配置
+# Deploy — 部署配置目录
 
-## 快速启动（开发 / 私有化部署）
+## 快速参考
 
-```bash
-# 1. 进入项目根目录
-cd /path/to/archery2.0
-
-# 2. 复制并配置环境变量
-cp .env.example .env
-# 修改 .env 中的密码等敏感配置
-
-# 3. 启动所有服务
-docker compose -f deploy/docker-compose.yml up -d
-
-# 4. 执行数据库初始化迁移
-docker compose -f deploy/docker-compose.yml exec backend alembic upgrade head
-
-# 5. 访问
-#   前端：        http://localhost
-#   后端 API 文档：http://localhost:8000/docs
-#   Grafana：     http://localhost:3000  (admin/admin)
-#   Flower：      http://localhost:5555
-#   Prometheus：  http://localhost:9090
-```
-
-## 服务说明
-
-| 服务 | 端口 | 说明 |
+| 场景 | 使用文件 | 详细文档 |
 |---|---|---|
-| frontend | 80 | Nginx 静态文件 + API 反代 |
-| backend | 8000 | FastAPI 应用 |
-| celery_worker | - | SQL 执行、通知异步任务 |
-| celery_beat | - | 定时任务调度 |
-| flower | 5555 | Celery 任务监控 |
-| postgres | 5432 | PostgreSQL 16 元数据库 |
-| redis | 6379 | Redis 7 缓存/消息队列 |
-| prometheus | 9090 | 指标采集存储 |
-| alertmanager | 9093 | 告警路由 |
-| grafana | 3000 | 可视化面板 |
+| **本地开发 / 功能测试** | 根目录 `docker-compose.yml` | [docs/deploy_test_env.md](../docs/deploy_test_env.md) |
+| **生产环境部署** | `deploy/docker-compose.yml`（本目录） | [docs/deploy_production_env.md](../docs/deploy_production_env.md) |
 
-## Prometheus 服务发现
+## 两套 Compose 文件的区别
 
-平台提供 HTTP SD 端点，Prometheus 自动发现数据库实例：
-
-```yaml
-# deploy/prometheus/prometheus.yml 已配置
-scrape_configs:
-  - job_name: archery_db_monitor
-    http_sd_configs:
-      - url: http://backend:8000/internal/prometheus/sd-targets
-        refresh_interval: 30s
-```
-
-DBA 在平台页面添加实例采集配置后，无需重启 Prometheus，30 秒内自动生效。
-
-## K8s 部署（生产）
-
-```bash
-# 使用 Helm
-helm install sagittadb ./deploy/helm/sagittadb \
-  --namespace sagittadb \
-  --create-namespace \
-  --values deploy/helm/sagittadb/values.yaml \
-  --set backend.env.SECRET_KEY=your-secret-key \
-  --set backend.env.APP_ENV=production
-```
-
-> **注意**：`APP_ENV=production` 时系统启动强制校验 `SECRET_KEY`，若仍为默认值将拒绝启动。
+| 配置项 | 开发（根目录） | 生产（deploy/） |
+|---|---|---|
+| 代码挂载 | `./backend:/app`（热重载） | 无（使用镜像内置代码） |
+| uvicorn workers | 1（--reload） | 4 |
+| Celery 并发 | 4 | 8 |
+| 资源限制 | 无 | 有（CPU/内存 limit） |
+| restart 策略 | `unless-stopped` | `always` |
+| Grafana SSO | 关闭 | 启用（OAuth 集成） |
 
 ## 目录结构
 
 ```
 deploy/
-├── docker-compose.yml      开发/私有化部署
-├── nginx.conf              Nginx 反代配置
+├── docker-compose.yml      # 生产部署（独立完整，不依赖根目录文件）
+├── nginx.conf              # Nginx 反向代理配置
 ├── prometheus/
-│   ├── prometheus.yml      Prometheus 采集配置
-│   ├── alertmanager.yml    告警路由配置
+│   ├── prometheus.yml      # Prometheus 采集配置
+│   ├── alertmanager.yml    # 告警路由配置
 │   └── rules/
-│       └── db_alerts.yml   10 条默认告警规则
+│       └── db_alerts.yml   # 默认告警规则
 ├── grafana/
-│   └── provisioning/       Grafana 预置 Dashboard（Sprint 5）
-└── helm/
-    └── archery/            K8s Helm Chart
+│   └── provisioning/       # Grafana 预置 Dashboard
+├── helm/
+│   └── sagittadb/          # K8s Helm Chart（生产 K8s 部署）
+└── backup/
+    ├── backup-postgres.sh  # PostgreSQL 备份脚本
+    └── restore-postgres.sh # PostgreSQL 恢复脚本
 ```
