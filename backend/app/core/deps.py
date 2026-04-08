@@ -30,20 +30,29 @@ async def current_user(
     if not user_id:
         raise _401
 
-    # Token 黑名单检查（降级：Redis 不可用时放行）
+    # Token 黑名单检查（fail-close：Redis 不可用时拒绝请求，防止已登出 Token 复用）
     try:
         from redis.asyncio import Redis
 
         from app.core.config import settings
-        r = Redis.from_url(settings.REDIS_URL, decode_responses=True)
-        if await r.exists(f"blacklist:{token}"):
-            await r.aclose()
-            raise _401
+        r = Redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        is_blacklisted = await r.exists(f"blacklist:{token}")
         await r.aclose()
+        if is_blacklisted:
+            raise _401
     except HTTPException:
         raise
     except Exception:
-        pass
+        # Redis 不可用时 fail-close：拒绝所有认证请求，避免已登出 Token 被复用
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="认证服务暂时不可用，请稍后重试",
+        )
 
     from app.services.user import UserService
     db_user = await UserService.get_by_id(db, int(user_id))

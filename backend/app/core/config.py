@@ -4,7 +4,7 @@
 """
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -87,13 +87,22 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = ""
 
-    @field_validator("SECRET_KEY")
-    @classmethod
-    def secret_key_must_be_strong(cls, v: str) -> str:
-        if v == "CHANGE_ME_IN_PRODUCTION_USE_RANDOM_32_CHARS":
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        _default_key = "CHANGE_ME_IN_PRODUCTION_USE_RANDOM_32_CHARS"
+        if self.SECRET_KEY == _default_key:
+            if self.APP_ENV == "production":
+                raise ValueError(
+                    "生产环境禁止使用默认 SECRET_KEY，"
+                    "请设置环境变量 SECRET_KEY 为至少 32 字符的随机字符串。\n"
+                    "生成命令：python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
             import warnings
-            warnings.warn("SECRET_KEY 使用默认值，请在生产环境中替换！", stacklevel=2)
-        return v
+            warnings.warn(
+                "SECRET_KEY 使用默认值，请在生产环境中替换！",
+                stacklevel=2,
+            )
+        return self
 
     @property
     def celery_broker_url(self) -> str:

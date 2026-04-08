@@ -13,6 +13,7 @@ from app.core.database import engine
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.routers import (
+    ai,
     archive,
     auth,
     binlog,
@@ -76,6 +77,7 @@ app.include_router(binlog.router,     prefix=f"{API_V1}/binlog",     tags=["Binl
 app.include_router(optimize.router,   prefix=f"{API_V1}/optimize",   tags=["SQL 优化"])
 app.include_router(monitor.router,    prefix=f"{API_V1}/monitor",    tags=["可观测中心"])
 app.include_router(system.router,     prefix=f"{API_V1}/system",     tags=["系统管理"])
+app.include_router(ai.router,         prefix=f"{API_V1}/ai",         tags=["AI 能力"])
 
 from app.routers.monitor import sd_router  # noqa: E402
 
