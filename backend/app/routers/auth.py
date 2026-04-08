@@ -4,7 +4,7 @@
 import logging
 import time
 import uuid
-from urllib.parse import quote as urllib_quote
+from urllib.parse import quote as urllib_quote, urlencode as urllib_urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -230,6 +230,7 @@ async def oauth_callback(
     db: AsyncSession = Depends(get_db),
     redis=Depends(get_redis),
     code: str | None = None,
+    ticket: str | None = None,
     state: str | None = None,
     error: str | None = None,
 ):
@@ -250,7 +251,9 @@ async def oauth_callback(
     if error:
         return _redirect_error(f"用户取消或平台返回错误: {error}")
 
-    if not code or not state:
+    # CAS 使用 ticket 参数，OAuth2 使用 code 参数
+    auth_code = code or ticket
+    if not auth_code or not state:
         return _redirect_error("回调参数缺失")
 
     # 验证 CSRF state
@@ -259,10 +262,16 @@ async def oauth_callback(
         return _redirect_error("state 验证失败，请重新登录")
     await redis.delete(f"oauth_state:{state}")
 
-    callback_url = str(request.base_url).rstrip("/") + f"/api/v1/auth/{provider}/callback/"
+    base_callback = str(request.base_url).rstrip("/") + f"/api/v1/auth/{provider}/callback/"
+    # CAS 校验须与 authorize 时完全一致的 service URL（含 state 参数）
+    callback_url = (
+        base_callback + "?" + urllib_urlencode({"state": state})
+        if provider == "cas"
+        else base_callback
+    )
 
     try:
-        user = await oauth_auth.handle_callback(provider, db, code, callback_url)
+        user = await oauth_auth.handle_callback(provider, db, auth_code, callback_url)
     except Exception as e:
         logger.warning("oauth_callback_error: provider=%s error=%s", provider, str(e))
         return _redirect_error(str(e))

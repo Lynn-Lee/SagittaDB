@@ -367,11 +367,12 @@ export default function LoginPage() {
                 label="LDAP"  color="#5E7CE0"
                 onClick={() => handleOAuth('ldap')}
               />
-              {/* OIDC — 暂无矢量图，保留 emoji */}
+              {/* CAS — 统一认证服务 */}
               <OAuthBtn
-                icon="🔑" label="OIDC"  color="#A78BFA"
-                loading={oauthLoading === 'oidc'}
-                onClick={() => handleOAuth('oidc')}
+                icon={<PlatformIcon src="/icons/cas.svg" alt="CAS" />}
+                label="CAS"  color="#0590DF"
+                loading={oauthLoading === 'cas'}
+                onClick={() => handleOAuth('cas')}
               />
               {/* 钉钉 — 天蓝 #3AA2EB */}
               <OAuthBtn

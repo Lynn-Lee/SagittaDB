@@ -23,7 +23,7 @@ CONFIG_GROUPS = {
     "wecom":    "企业微信",
     "feishu":   "飞书",
     "ldap":     "LDAP 认证",
-    "oidc":     "OIDC 登录",
+    "cas":      "CAS 单点登录",
     "ai":       "AI 功能",
 }
 
@@ -78,13 +78,10 @@ CONFIG_DEFINITIONS: dict[str, tuple[str, str, bool, str]] = {
     "ldap_attr_email":      ("邮箱属性",             "ldap",     False, "mail"),
     "ldap_attr_display":    ("显示名属性",           "ldap",     False, "cn"),
 
-    # ── OIDC（通用 OpenID Connect）───────────────────────────
-    "oidc_enabled":                 ("启用 OIDC 登录",       "oidc", False, "false"),
-    "oidc_client_id":               ("Client ID",            "oidc", False, ""),
-    "oidc_client_secret":           ("Client Secret",        "oidc", True,  ""),
-    "oidc_authorization_endpoint":  ("授权端点 URL",          "oidc", False, ""),
-    "oidc_token_endpoint":          ("Token 端点 URL",        "oidc", False, ""),
-    "oidc_userinfo_endpoint":       ("UserInfo 端点 URL",     "oidc", False, ""),
+    # ── CAS（Central Authentication Service）────────────────
+    "cas_enabled":              ("启用 CAS 登录",              "cas",  False, "false"),
+    "cas_server_url":           ("CAS 服务器地址",             "cas",  False, ""),
+    "cas_username_attribute":   ("用户名属性（留空默认 user）", "cas",  False, ""),
 
     # ── AI 配置 ───────────────────────────────────────────────
     "ai_enabled":           ("启用 AI 功能",          "ai",       False, "false"),

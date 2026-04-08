@@ -23,7 +23,7 @@ const GROUP_LABEL: Record<string, React.ReactNode> = {
   feishu:   <span><PlatformImg src="/icons/feishu.svg"   alt="飞书" />飞书通知</span>,
   ldap:     <span><PlatformImg src="/icons/ldap.svg"     alt="LDAP" />LDAP 认证</span>,
   ai:       <span>🤖 AI 功能</span>,
-  oidc:     <span>🔑 OIDC SSO</span>,
+  cas:      <span><PlatformImg src="/icons/cas.svg" alt="CAS" />CAS SSO</span>,
 }
 
 function TestButton({ label, onTest }: { label: string; onTest: () => Promise<any> }) {

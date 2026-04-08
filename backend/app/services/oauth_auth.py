@@ -10,10 +10,8 @@
 from __future__ import annotations
 
 import base64
-import json
 import logging
 import urllib.parse
-from typing import Any
 
 import httpx
 from sqlalchemy import select
@@ -257,101 +255,91 @@ async def handle_wecom_callback(
     return await _provision_oauth_user(db, username, email, name, user_id, "wecom")
 
 
-# ── OIDC（通用 OpenID Connect）───────────────────────────────
+# ── CAS（Central Authentication Service）────────────────────
 
-async def get_oidc_authorize_url(
+async def get_cas_authorize_url(
     db: AsyncSession, callback_url: str, state: str
 ) -> str:
-    auth_endpoint = await SystemConfigService.get_value(db, "oidc_authorization_endpoint")
-    client_id = await SystemConfigService.get_value(db, "oidc_client_id")
-    if not auth_endpoint or not client_id:
-        raise ValueError("OIDC 授权端点或 Client ID 未配置")
-    params = {
-        "response_type": "code",
-        "client_id": client_id,
-        "redirect_uri": callback_url,
-        "scope": "openid email profile",
-        "state": state,
-    }
-    return auth_endpoint + "?" + urllib.parse.urlencode(params)
+    cas_server_url = await SystemConfigService.get_value(db, "cas_server_url")
+    if not cas_server_url:
+        raise ValueError("CAS 服务器地址未配置，请在系统配置 → CAS 单点登录中填写")
+    # 将 state 嵌入 service URL，CAS 会原样回传
+    service = callback_url + "?" + urllib.parse.urlencode({"state": state})
+    return cas_server_url.rstrip("/") + "/login?" + urllib.parse.urlencode({"service": service})
 
 
-async def handle_oidc_callback(
-    db: AsyncSession, code: str, callback_url: str
+async def handle_cas_callback(
+    db: AsyncSession, ticket: str, callback_url: str
 ) -> Users:
-    token_endpoint = await SystemConfigService.get_value(db, "oidc_token_endpoint")
-    userinfo_endpoint = await SystemConfigService.get_value(db, "oidc_userinfo_endpoint")
-    client_id = await SystemConfigService.get_value(db, "oidc_client_id")
-    client_secret = await SystemConfigService.get_value(db, "oidc_client_secret")
-    if not token_endpoint or not client_id:
-        raise ValueError("OIDC 配置不完整（Token 端点或 Client ID 缺失）")
+    """callback_url 须与 authorize 时完全一致（含 state 参数）。"""
+    import xml.etree.ElementTree as ET
 
+    cas_server_url = await SystemConfigService.get_value(db, "cas_server_url")
+    username_attr = await SystemConfigService.get_value(db, "cas_username_attribute") or "user"
+    if not cas_server_url:
+        raise ValueError("CAS 配置不完整（服务器地址缺失）")
+
+    validate_url = cas_server_url.rstrip("/") + "/serviceValidate"
     async with httpx.AsyncClient(timeout=10) as client:
-        token_resp = await client.post(
-            token_endpoint,
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": callback_url,
-                "client_id": client_id,
-                "client_secret": client_secret,
-            },
-            headers={"Accept": "application/json"},
-        )
-        token_resp.raise_for_status()
-        token_data = token_resp.json()
-        access_token = token_data.get("access_token")
-        if not access_token:
-            raise ValueError(f"OIDC 获取 Token 失败: {token_data}")
+        resp = await client.get(validate_url, params={"service": callback_url, "ticket": ticket})
+        resp.raise_for_status()
+        xml_text = resp.text
 
-        user_info: dict[str, Any]
-        if userinfo_endpoint:
-            me_resp = await client.get(
-                userinfo_endpoint,
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            me_resp.raise_for_status()
-            user_info = me_resp.json()
-        else:
-            # 从 id_token payload 解码（不做签名验证，仅用于 provision）
-            id_token = token_data.get("id_token", "")
-            parts = id_token.split(".")
-            if len(parts) >= 2:
-                padded = parts[1] + "=" * (-len(parts[1]) % 4)
-                user_info = json.loads(base64.urlsafe_b64decode(padded))
-            else:
-                raise ValueError("OIDC 无法获取用户信息：userinfo_endpoint 未配置且无 id_token")
+    root = ET.fromstring(xml_text)
+    ns = {"cas": "http://www.yale.edu/tp/cas"}
 
-    sub = user_info.get("sub", "")
-    email = user_info.get("email", "")
-    name = user_info.get("name", "") or user_info.get("preferred_username", "")
-    username = str(user_info.get("preferred_username", "")) or f"oidc_{sub[:12]}"
-    return await _provision_oauth_user(db, username, email, name, sub, "oidc")
+    success = root.find("cas:authenticationSuccess", ns)
+    if success is None:
+        failure = root.find("cas:authenticationFailure", ns)
+        msg = (failure.text or "票据验证失败").strip() if failure is not None else "票据验证失败"
+        raise ValueError(f"CAS 认证失败: {msg}")
+
+    user_elem = success.find("cas:user", ns)
+    username = (user_elem.text or "").strip() if user_elem is not None else ""
+    if not username:
+        raise ValueError("CAS 未返回用户名")
+
+    attrs_elem = success.find("cas:attributes", ns)
+    email = ""
+    display_name = ""
+    if attrs_elem is not None:
+        for tag in ("cas:email", f"cas:{username_attr}"):
+            elem = attrs_elem.find(tag, ns)
+            if elem is not None and elem.text:
+                email = elem.text.strip()
+                break
+        for tag in ("cas:displayName", "cas:cn", "cas:name"):
+            elem = attrs_elem.find(tag, ns)
+            if elem is not None and elem.text:
+                display_name = elem.text.strip()
+                break
+
+    return await _provision_oauth_user(db, username, email, display_name or username, username, "cas")
 
 
 # ── 统一分发入口 ──────────────────────────────────────────────
 
-SUPPORTED_PROVIDERS = ("dingtalk", "feishu", "wecom", "oidc")
+SUPPORTED_PROVIDERS = ("dingtalk", "feishu", "wecom", "cas")
 
 _PROVIDER_ENABLED_KEY: dict[str, str] = {
     "dingtalk": "ding_login_enabled",
     "feishu":   "feishu_login_enabled",
     "wecom":    "wecom_login_enabled",
-    "oidc":     "oidc_enabled",
+    "cas":      "cas_enabled",
 }
 
 _GET_URL = {
     "dingtalk": get_dingtalk_authorize_url,
     "feishu":   get_feishu_authorize_url,
     "wecom":    get_wecom_authorize_url,
-    "oidc":     get_oidc_authorize_url,
+    "cas":      get_cas_authorize_url,
 }
 
 _HANDLE_CB = {
     "dingtalk": handle_dingtalk_callback,
     "feishu":   handle_feishu_callback,
     "wecom":    handle_wecom_callback,
-    "oidc":     handle_oidc_callback,
+    "cas":      handle_cas_callback,
 }
 
 
