@@ -20,6 +20,44 @@ const SagittaLogo = () => (
   </svg>
 )
 
+// ── 第三方平台图标 ──────────────────────────────────────────
+const DingTalkLogo = ({ size = 20 }: { size?: number }) => (
+  <svg viewBox="0 0 200 200" width={size} height={size} fill="none">
+    {/* 左翼 */}
+    <path d="M18 108 C14 72 36 38 68 26 L56 62 Z" fill="#1677FF"/>
+    {/* 右翼 */}
+    <path d="M182 108 C186 72 164 38 132 26 L144 62 Z" fill="#1677FF"/>
+    {/* 闪电主体 */}
+    <path d="M100 18 L72 96 L100 80 L82 166 L140 80 L108 96 Z" fill="#1677FF"/>
+  </svg>
+)
+
+const FeishuLogo = ({ size = 20 }: { size?: number }) => (
+  <svg viewBox="0 0 200 180" width={size * (200/180)} height={size} fill="none">
+    {/* 左翼（深蓝色） */}
+    <path d="M30 165 C10 120 18 68 52 40 L88 105 Z" fill="#1C6EF2"/>
+    {/* 右翼（青绿色） */}
+    <path d="M88 105 C100 58 138 28 176 42 C176 42 148 85 110 105 Z" fill="#00C2A8"/>
+    {/* 身体连接部分（深青） */}
+    <path d="M52 40 C68 24 88 18 106 24 L88 105 Z" fill="#0E4DB1"/>
+  </svg>
+)
+
+const WeComLogo = ({ size = 20 }: { size?: number }) => (
+  <svg viewBox="0 0 200 200" width={size} height={size} fill="none">
+    {/* 主气泡（蓝色） */}
+    <ellipse cx="115" cy="88" rx="68" ry="52" fill="none" stroke="#1677FF" strokeWidth="10"/>
+    <path d="M82 132 L70 162 L108 138" fill="#1677FF"/>
+    {/* 4个彩色圆点 2×2 */}
+    <circle cx="90"  cy="80" r="11" fill="#07C160"/>
+    <circle cx="122" cy="80" r="11" fill="#FA8C16"/>
+    <circle cx="90"  cy="104" r="11" fill="#1677FF"/>
+    <circle cx="122" cy="104" r="11" fill="#F5222D"/>
+    {/* 右上角小辅助气泡 */}
+    <ellipse cx="58" cy="60" rx="32" ry="24" fill="none" stroke="#07C160" strokeWidth="7"/>
+  </svg>
+)
+
 // ── 第三方登录按钮 ──────────────────────────────────────────
 const OAuthBtn = ({
   icon, label, color, loading, onClick,
@@ -341,9 +379,9 @@ export default function LoginPage() {
             <div style={{ display: 'flex', gap: 8 }}>
               <OAuthBtn icon="🏢" label="LDAP"  color="#60A5FA" onClick={() => handleOAuth('ldap')} />
               <OAuthBtn icon="🔑" label="OIDC"  color="#A78BFA" loading={oauthLoading === 'oidc'}     onClick={() => handleOAuth('oidc')} />
-              <OAuthBtn icon="🔔" label="钉钉"  color="#1677FF" loading={oauthLoading === 'dingtalk'} onClick={() => handleOAuth('dingtalk')} />
-              <OAuthBtn icon="🦅" label="飞书"  color="#00B42A" loading={oauthLoading === 'feishu'}   onClick={() => handleOAuth('feishu')} />
-              <OAuthBtn icon="💼" label="企微"  color="#07C160" loading={oauthLoading === 'wecom'}    onClick={() => handleOAuth('wecom')} />
+              <OAuthBtn icon={<DingTalkLogo />} label="钉钉"  color="#1677FF" loading={oauthLoading === 'dingtalk'} onClick={() => handleOAuth('dingtalk')} />
+              <OAuthBtn icon={<FeishuLogo />}  label="飞书"  color="#00C2A8" loading={oauthLoading === 'feishu'}   onClick={() => handleOAuth('feishu')} />
+              <OAuthBtn icon={<WeComLogo />}   label="企微"  color="#07C160" loading={oauthLoading === 'wecom'}    onClick={() => handleOAuth('wecom')} />
             </div>
           </>
         )}
