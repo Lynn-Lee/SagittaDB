@@ -1,7 +1,7 @@
 # SagittaDB 生产环境部署文档
 
-> **文档版本：** v1.0 · 2026-03-26
-> **适用版本：** SagittaDB v1.0-beta
+> **文档版本：** v1.1 · 2026-04-08
+> **适用版本：** SagittaDB v1.0-GA
 > **部署方式：** 方案一 Docker Compose 生产模式 / 方案二 Kubernetes + Helm Chart
 > **目标读者：** 运维工程师、DevOps、系统管理员
 
@@ -91,7 +91,8 @@ DATABASE_URL_SYNC=postgresql+psycopg2://archery:<强密码>@postgres:5432/archer
 REDIS_URL=redis://:<Redis强密码>@redis:6379/0
 REDIS_PASSWORD=<Redis强密码>
 
-# ── 安全（生产环境必须替换）──────────────────────────
+# ── 安全（生产环境必须替换，系统启动时会强制校验）────
+# 若使用默认值且 APP_ENV=production，后端启动时将抛出 ValueError 并拒绝启动
 SECRET_KEY=<上一步生成的随机字符串，至少32位>
 ACCESS_TOKEN_EXPIRE_MINUTES=30     # 生产建议缩短至 30 分钟
 REFRESH_TOKEN_EXPIRE_DAYS=3        # 生产建议缩短至 3 天

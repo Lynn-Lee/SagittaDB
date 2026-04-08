@@ -2,7 +2,7 @@
 
 > **项目路径：** `/Users/lynn/SynologyDrive/SynologyDrive/Code/SagittaDB`
 > **重构基准：** Archery v1.14.0
-> **文档版本：** v1.5 · 2026-03-25
+> **文档版本：** v1.6 · 2026-04-08
 > **状态说明：** ✅ 已完成并验证 · 🔧 已开发待测试 · 📋 待开发
 
 ---
@@ -39,8 +39,10 @@
 | Pack G | 全链路测试、性能测试、安全扫描 | ✅ | 100% |
 | Pack H | Helm Chart、CI/CD 流水线、生产环境配置 | ✅ | 100% |
 | 品牌升级 | SagittaDB 品牌 UI 全面更新 | ✅ | 100% |
+| Security Hardening | Token 黑名单 fail-close、SECRET_KEY 强制校验、Text2SQL 分层、依赖版本收紧 | ✅ | 100% |
+| 多级审批流 | 管理员自定义多节点审批流 + 前端管理页面 | ✅ | 100% |
 
-**总体完成度：约 98%**
+**总体完成度：100%**
 
 ---
 
@@ -245,6 +247,47 @@
 - `test_ldap_auth.py`：5 个单元测试（未启用/配置缺失/用户不存在/密码错误/库未安装）
 - `test_oauth_auth.py`：8 个单元测试（不支持的 provider/各 provider 禁用/URL 构造/缺失配置）
 
+### Security Hardening — 安全加固 ✅
+
+**Token 黑名单 fail-close（`backend/app/core/deps.py`）**
+- 原实现：Redis 连接失败时静默放行（fail-open），存在被伪造已注销 Token 的风险
+- 修复后：Redis 不可达时返回 503 而非放行，fail-close 安全策略
+
+**SECRET_KEY 生产环境强制校验（`backend/app/core/config.py`）**
+- 使用 Pydantic `model_validator(mode="after")` 跨字段校验
+- 生产环境（`APP_ENV=production`）使用默认密钥时直接 `ValueError` 阻断启动
+- 非生产环境降级为 `warnings.warn` 提示
+
+**Text2SQL 服务分层（`backend/app/services/text2sql.py`）**
+- 从 `routers/ai.py` 提取全部业务逻辑至独立 Service 层
+- Router 仅做 HTTP 适配，service 提供 `generate_sql()` 单一入口
+- 修复 AI Router 未注册至 `main.py` 的问题（原 `/api/v1/ai/` 端点 404）
+
+**依赖版本收紧（`backend/pyproject.toml`）**
+- 使用 `~=`（compatible release）替代宽松 `>=`
+- 防止 minor/major 版本自动升级引入破坏性变更
+
+---
+
+### 多级审批流 ✅
+
+**后端**
+- 新增数据模型：`ApprovalFlow`（审批流模板）+ `ApprovalFlowNode`（节点，支持顺序编号）
+- 三种审批人类型：`users`（指定用户）/ `group`（资源组成员）/ `any_reviewer`（任意 sql_review 权限用户）
+- 快照机制：工单创建时将审批流节点复制为 `audit_auth_groups_info` JSON，模板变更不影响在途工单
+- Alembic migration `0005_approval_flow.py`：新增两张表 + `sql_workflow.flow_id` 外键
+- `ApprovalFlowService`：CRUD（列表/详情/创建/更新/停用）+ `snapshot_for_workflow()`
+- 修改 `WorkflowService.create()`：自动读取 flow_id 生成快照，向后兼容 flow_id=None 旧模式
+
+**前端**
+- `frontend/src/api/approvalFlow.ts`：封装 5 个 API 调用（list/get/create/update/deactivate）
+- `frontend/src/pages/system/ApprovalFlowPage.tsx`：
+  - 审批流列表（名称、节点数、状态、创建人）
+  - Drawer 表单：审批流基本信息 + `Form.List` 动态节点编辑
+  - 节点审批人类型联动：选 `any_reviewer` 隐藏选择框，选 `users`/`group` 展示对应下拉
+- `MainLayout.tsx` 菜单：系统管理 → 审批流管理（`ApartmentOutlined` 图标）
+- `App.tsx` 路由：`/system/approval-flows` lazy import
+
 ---
 
 ## 四、待开发功能（Pack G+）
@@ -341,6 +384,8 @@
 | packG_tests | 152 单元测试 + 31 集成测试；Locust 性能测试；Bandit+pip-audit+Trivy 安全扫描 CI |
 | rollback_hotfix | exp.AlterTable → exp.Alter（sqlglot 版本兼容修复）|
 | packH_deploy | Helm Chart（12 模板文件）+ docker-compose.prod.yml + 备份脚本 + GHCR 发布 + Helm lint CI |
+| security_hardening | Token 黑名单 fail-close / SECRET_KEY 生产强制校验 / Text2SQL 分层 / AI 路由注册修复 / 依赖版本收紧 |
+| approval_flow | 多级审批流后端（model/service/migration/router）+ 前端管理页面完整实现 |
 
 ---
 
@@ -359,7 +404,11 @@
 | OAuth2 回调架构 | 后端处理 code 交换 → JWT → 重定向前端，前端无需保存 client_secret，安全且符合 SPA 最佳实践 |
 | LDAP 密码验证 | 使用 user re-bind 方式（而非 compare），兼容更多 LDAP Server |
 | OAuth state 存储 | Redis（5min TTL），优于 Session/DB，天然支持多实例无状态部署 |
+| Token 黑名单安全策略 | fail-close：Redis 不可达时拒绝请求（503），而非放行，防御已注销 Token 被复用 |
+| SECRET_KEY 校验方式 | `model_validator(mode="after")` 跨字段校验（`field_validator` 仅支持单字段），生产环境使用默认密钥直接 ValueError 阻断启动 |
+| 审批流快照机制 | 工单创建时快照节点信息，确保模板变更不破坏在途审批；node 顺序由数组下标重新赋值，确保连续性 |
+| 审批人类型设计 | 三级颗粒度（指定用户 / 资源组全员 / 任意审批权限），覆盖从精确到宽松的全部场景 |
 
 ---
 
-*文档最后更新：2026-03-25 · SagittaDB v1.0-beta（Pack A~H 全部完成，生产就绪）*
+*文档最后更新：2026-04-08 · SagittaDB v1.0-GA（Pack A~H + Security Hardening + 多级审批流，功能完整）*

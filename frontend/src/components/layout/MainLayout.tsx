@@ -7,7 +7,7 @@ import {
   DatabaseOutlined, SettingOutlined, AuditOutlined, BellOutlined,
   LogoutOutlined, UserOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   SlidersFilled, BugOutlined, ThunderboltOutlined, SafetyCertificateOutlined,
-  KeyOutlined, EyeInvisibleOutlined,
+  KeyOutlined, EyeInvisibleOutlined, ApartmentOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/auth'
 
@@ -60,6 +60,7 @@ const NAV_ITEMS: MenuProps['items'] = [
     children: [
       { key: '/system/users', label: '用户管理' },
       { key: '/system/groups', label: '资源组管理' },
+      { key: '/system/approval-flows', icon: <ApartmentOutlined />, label: '审批流管理' },
       { key: '/system/config', icon: <SafetyCertificateOutlined />, label: '系统配置' },
       { key: '/masking', icon: <EyeInvisibleOutlined />, label: '数据脱敏规则' },
     ],

@@ -1,7 +1,7 @@
 # SagittaDB 矢准数据
 
 > **矢向数据，精准管控**
-> 企业级多引擎数据库管控平台 · 基于 Archery v1.14.0 深度重构 · v1.0-beta
+> 企业级多引擎数据库管控平台 · 基于 Archery v1.14.0 深度重构 · v1.0-GA
 
 ---
 
@@ -9,9 +9,9 @@
 
 SagittaDB 通过统一的 Web 界面，帮助 DBA 和研发团队安全、高效地完成 SQL 审核上线、在线查询、慢日志分析、数据库监控等全流程数据库管理工作。
 
-- **安全**：修复原 Archery 5 个 P0 安全漏洞，所有敏感字段 Fernet 加密存储
+- **安全**：修复原 Archery 5 个 P0 安全漏洞，Token 黑名单 fail-close，所有敏感字段 Fernet/AES 加密存储
 - **全面**：支持 11 种数据库引擎（MySQL / PgSQL / Oracle / MongoDB / Redis / ClickHouse 等）
-- **高效**：AI Text2SQL + 工单模板，全异步 Celery 执行不阻塞
+- **高效**：AI Text2SQL + 工单模板 + 多级自定义审批流，全异步 Celery 执行不阻塞
 - **可观测**：内建 Prometheus + Grafana 监控，全流程操作审计
 
 ## 技术栈
@@ -73,8 +73,10 @@ SagittaDB/
 | Pack F | 第三方登录（LDAP/钉钉/飞书/企微/OIDC） | ✅ 100% |
 | Pack G | 全链路测试、性能测试、安全扫描 | ✅ 100% |
 | Pack H | Helm Chart、CI/CD、生产环境配置 | ✅ 100% |
+| Security Hardening | Token 黑名单 fail-close、SECRET_KEY 强制校验、AI 路由注册 | ✅ 100% |
+| 多级审批流 | 管理员自定义审批节点 + 前端管理页面 | ✅ 100% |
 
-**总体完成度：约 98%**
+**总体完成度：100%（v1.0-GA）**
 
 详细进度请见 [docs/sagittadb_progress.md](docs/sagittadb_progress.md)
 产品需求文档请见 [docs/sagittadb_prd.md](docs/sagittadb_prd.md)

@@ -24,6 +24,7 @@ const UserManagement       = lazy(() => import('@/pages/system/UserManagement'))
 const ResourceGroupManagement = lazy(() => import('@/pages/system/ResourceGroupManagement'))
 const SystemConfig         = lazy(() => import('@/pages/system/SystemConfig'))
 const MaskingRulePage      = lazy(() => import('@/pages/masking/MaskingRulePage'))
+const ApprovalFlowPage     = lazy(() => import('@/pages/system/ApprovalFlowPage'))
 const AuditLog             = lazy(() => import('@/pages/audit/AuditLog'))
 const Placeholder          = lazy(() => import('@/pages/Placeholder'))
 const ArchivePage          = lazy(() => import('@/pages/archive/ArchivePage'))
@@ -58,8 +59,9 @@ export default function App() {
           <Route path="optimize"             element={<OptimizePage />} />
           <Route path="schema"               element={<DataDictPage />} />
           <Route path="instance"             element={<InstanceList />} />
-          <Route path="system/users"         element={<UserManagement />} />
+          <Route path="system/users"           element={<UserManagement />} />
           <Route path="system/groups"        element={<ResourceGroupManagement />} />
+          <Route path="system/approval-flows" element={<ApprovalFlowPage />} />
           <Route path="system/config"        element={<SystemConfig />} />
           <Route path="masking"              element={<MaskingRulePage />} />
           <Route path="audit"                element={<AuditLog />} />
