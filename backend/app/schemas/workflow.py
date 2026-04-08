@@ -16,6 +16,8 @@ class WorkflowCreateRequest(BaseModel):
     is_backup: bool = True
     run_date_start: datetime | None = None
     run_date_end: datetime | None = None
+    # 多级审批流：指定流程模板 ID；不传则使用资源组默认单级审批
+    flow_id: int | None = Field(default=None, description="审批流模板 ID（不传则使用默认单级审批）")
 
     @field_validator("sql_content")
     @classmethod

@@ -1,9 +1,12 @@
 """
-审批流核心服务（Sprint 3）。
-从 Archery 1.x AuditV2 移植，重构为 async SQLAlchemy。
+审批流核心服务。
 
-工单类型支持：SQL(2) / Query(1) / Archive(3) / Monitor(4)
-审批链格式：逗号分隔的资源组ID，如 "1,2,3"
+变更说明（多级审批升级）：
+- create_audit 新增 nodes_snapshot 参数，支持从流程模板快照构建审批链；
+  未传 snapshot 时保持原有逻辑（向后兼容）。
+- operate 中 pass/reject 操作前增加审批人权限校验。
+- _is_authorized_approver 负责按节点类型判断当前用户是否有权限审批。
+- get_pending_for_user 返回当前用户有权限审批的工单列表。
 """
 from __future__ import annotations
 
@@ -13,6 +16,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import AppException, NotFoundException
 from app.models.workflow import (
@@ -27,20 +31,19 @@ from app.models.workflow import (
 logger = logging.getLogger(__name__)
 
 # 操作类型常量
-OP_SUBMIT  = "submit"    # 提交
-OP_PASS    = "pass"      # 审批通过
-OP_REJECT  = "reject"    # 驳回
-OP_CANCEL  = "cancel"    # 取消
-OP_EXECUTE = "execute"   # 执行
-OP_TIMING  = "timing"    # 定时执行
-OP_ABORT   = "abort"     # 中止
+OP_SUBMIT  = "submit"
+OP_PASS    = "pass"
+OP_REJECT  = "reject"
+OP_CANCEL  = "cancel"
+OP_EXECUTE = "execute"
+OP_TIMING  = "timing"
+OP_ABORT   = "abort"
 
 
 class AuditService:
     """
     审批流服务。
-    移植自 Archery 1.x workflow_audit.py AuditV2，
-    支持多级审批链、自动审批判断、操作日志记录。
+    支持管理员自定义多级审批链，每个节点可以配置不同的审批人范围。
     """
 
     def __init__(
@@ -53,27 +56,61 @@ class AuditService:
 
     # ── 创建审批记录 ──────────────────────────────────────────
 
-    async def create_audit(self, db: AsyncSession, operator: dict) -> WorkflowAudit:
+    async def create_audit(
+        self,
+        db: AsyncSession,
+        operator: dict,
+        nodes_snapshot: list[dict] | None = None,
+    ) -> WorkflowAudit:
         """
         工单提交时创建审批记录。
-        审批链从工单的 audit_auth_groups 读取（格式："1,2,3"）。
-        """
-        auth_groups = self.workflow.audit_auth_groups or ""
-        groups = [g.strip() for g in auth_groups.split(",") if g.strip()]
 
-        # 构建审批链详情
-        groups_info = [
-            {"order": i + 1, "group_id": g, "status": AuditStatus.PENDING}
-            for i, g in enumerate(groups)
-        ]
+        nodes_snapshot 不为 None 时：使用流程模板快照（新多级审批方式）。
+        nodes_snapshot 为 None 时：回退到旧逻辑，从 audit_auth_groups 字符串解析。
+        """
+        if nodes_snapshot is not None:
+            groups_info = nodes_snapshot
+            first_node = groups_info[0] if groups_info else {}
+            current_group = str(first_node.get("node_id", ""))
+            audit_groups_str = ",".join(str(n["node_id"]) for n in groups_info)
+        else:
+            # 向后兼容：旧格式 "group_id1,group_id2"
+            auth_groups = self.workflow.audit_auth_groups or ""
+            raw_groups = [g.strip() for g in auth_groups.split(",") if g.strip()]
+            groups_info = [
+                {
+                    "order": i + 1,
+                    "node_id": None,
+                    "node_name": f"第 {i + 1} 级审批",
+                    "approver_type": "any_reviewer",  # 旧格式不限制审批人
+                    "approver_ids": [],
+                    "status": AuditStatus.PENDING,
+                    "operator": None,
+                    "operated_at": None,
+                }
+                for i, _ in enumerate(raw_groups)
+            ] or [
+                {
+                    "order": 1,
+                    "node_id": None,
+                    "node_name": "审批",
+                    "approver_type": "any_reviewer",
+                    "approver_ids": [],
+                    "status": AuditStatus.PENDING,
+                    "operator": None,
+                    "operated_at": None,
+                }
+            ]
+            current_group = raw_groups[0] if raw_groups else ""
+            audit_groups_str = auth_groups
 
         audit = WorkflowAudit(
             workflow_id=self.workflow.id,
             workflow_type=int(self.workflow_type),
             workflow_title=self.workflow.workflow_name,
-            current_audit_auth_group=groups[0] if groups else "",
+            current_audit_auth_group=current_group,
             current_status=AuditStatus.PENDING,
-            audit_auth_groups=auth_groups,
+            audit_auth_groups=audit_groups_str,
             audit_auth_groups_info=json.dumps(groups_info, ensure_ascii=False),
             create_user=operator.get("username", ""),
             create_user_id=operator.get("id", 0),
@@ -81,14 +118,13 @@ class AuditService:
         db.add(audit)
         await db.flush()
 
-        # 记录提交日志
         await self._write_log(
             db, audit.id, operator, OP_SUBMIT,
             remark=f"提交工单：{self.workflow.workflow_name}"
         )
         await db.commit()
 
-        logger.info("audit_created: workflow=%s", self.workflow.id)
+        logger.info("audit_created: workflow=%s nodes=%d", self.workflow.id, len(groups_info))
         return audit
 
     # ── 审批操作 ──────────────────────────────────────────────
@@ -101,11 +137,6 @@ class AuditService:
         operator: dict,
         remark: str = "",
     ) -> dict:
-        """
-        审批操作：pass / reject / cancel。
-        返回操作结果和工单新状态。
-        """
-        # 加载工单
         wf_result = await db.execute(
             select(SqlWorkflow).where(SqlWorkflow.id == workflow_id)
         )
@@ -113,16 +144,12 @@ class AuditService:
         if not workflow:
             raise NotFoundException(f"工单 ID={workflow_id} 不存在")
 
-        # 加载审批记录
         audit_result = await db.execute(
             select(WorkflowAudit).where(WorkflowAudit.workflow_id == workflow_id)
         )
         audit = audit_result.scalar_one_or_none()
         if not audit:
             raise AppException("审批记录不存在", code=400)
-
-        operator.get("id")
-        operator.get("username", "")
 
         if action == OP_PASS:
             return await AuditService._do_pass(db, workflow, audit, operator, remark)
@@ -146,43 +173,41 @@ class AuditService:
         ):
             raise AppException("当前状态不允许审批通过", code=400)
 
-        # 解析审批链，判断是否还有下一级
         groups_info = json.loads(audit.audit_auth_groups_info or "[]")
-        current_order = next(
-            (g["order"] for g in groups_info if g["status"] == AuditStatus.PENDING),
+        current_node = next(
+            (g for g in groups_info if g.get("status") == AuditStatus.PENDING),
             None,
         )
-
-        if current_order is None:
+        if current_node is None:
             raise AppException("审批链已完成，无法重复审批", code=400)
 
-        # 更新当前节点状态
-        for g in groups_info:
-            if g["order"] == current_order:
-                g["status"] = AuditStatus.PASSED
-                g["operator"] = operator.get("username")
-                g["operated_at"] = datetime.now(UTC).isoformat()
-                break
+        # 校验审批人权限
+        await AuditService._check_approver_permission(db, operator, current_node)
 
-        # 判断是否还有下一节点
+        # 标记当前节点已通过
+        current_node["status"] = AuditStatus.PASSED
+        current_node["operator"] = operator.get("username")
+        current_node["operated_at"] = datetime.now(UTC).isoformat()
+
         next_pending = next(
-            (g for g in groups_info if g["status"] == AuditStatus.PENDING),
+            (g for g in groups_info if g.get("status") == AuditStatus.PENDING),
             None,
         )
 
         audit.audit_auth_groups_info = json.dumps(groups_info, ensure_ascii=False)
 
         if next_pending:
-            # 还有下一级审批
-            audit.current_audit_auth_group = str(next_pending["group_id"])
+            audit.current_audit_auth_group = str(next_pending.get("node_id", ""))
             audit.current_status = AuditStatus.PENDING
             workflow.status = WorkflowStatus.PENDING_REVIEW
-            msg = f"第 {current_order} 级审批通过，等待下一级审批"
+            msg = (
+                f"第 {current_node['order']} 级「{current_node.get('node_name', '')}」审批通过，"
+                f"等待下一级「{next_pending.get('node_name', '')}」审批"
+            )
         else:
-            # 全部审批通过
             audit.current_status = AuditStatus.PASSED
             workflow.status = WorkflowStatus.REVIEW_PASS
-            msg = "审批全部通过，工单已就绪"
+            msg = "全部审批通过，工单已就绪"
 
         await AuditService._write_log(db, audit.id, operator, OP_PASS, remark=remark or msg)
         await db.commit()
@@ -201,14 +226,23 @@ class AuditService:
         ):
             raise AppException("当前状态不允许驳回", code=400)
 
+        groups_info = json.loads(audit.audit_auth_groups_info or "[]")
+        current_node = next(
+            (g for g in groups_info if g.get("status") == AuditStatus.PENDING),
+            None,
+        )
+
+        # 校验审批人权限（current_node 为 None 说明链已完成，仍可驳回，跳过节点校验）
+        if current_node is not None:
+            await AuditService._check_approver_permission(db, operator, current_node)
+
         audit.current_status = AuditStatus.REJECTED
-        # 状态值 1 = 审批驳回（人工），描述为"审批驳回"
-        # 注意：区别于系统自动拒绝（未来可用状态值 9）
         workflow.status = WorkflowStatus.AUTO_REVIEW_FAIL
 
+        node_desc = f"「{current_node['node_name']}」" if current_node else ""
         await AuditService._write_log(
             db, audit.id, operator, OP_REJECT,
-            remark=remark or "审批人驳回"
+            remark=remark or f"{node_desc}审批人驳回"
         )
         await db.commit()
         return {"msg": "工单已驳回", "status": workflow.status}
@@ -230,18 +264,133 @@ class AuditService:
         if workflow.status not in cancelable:
             raise AppException("当前状态不允许取消", code=400)
 
+        # 取消只允许：工单提交人 或 超管
+        if (
+            not operator.get("is_superuser")
+            and operator.get("username") != workflow.engineer
+        ):
+            raise AppException("只有工单提交人或超管可以取消工单", code=403)
+
         audit.current_status = AuditStatus.CANCELED
-        # 状态值 8 = 已取消（人工操作），描述为"已取消"
         workflow.status = WorkflowStatus.ABORT
 
         await AuditService._write_log(
             db, audit.id, operator, OP_CANCEL,
-            remark=remark or "提交人/审批人取消工单"
+            remark=remark or "提交人/超管取消工单"
         )
         await db.commit()
         return {"msg": "工单已取消", "status": workflow.status}
 
-    # ── 获取审批日志 ──────────────────────────────────────────
+    # ── 审批人权限校验 ────────────────────────────────────────
+
+    @staticmethod
+    async def _check_approver_permission(
+        db: AsyncSession,
+        operator: dict,
+        node: dict,
+    ) -> None:
+        """
+        校验 operator 是否有权限审批 node。
+        超级管理员绕过所有节点限制。
+        """
+        if operator.get("is_superuser"):
+            return
+
+        approver_type = node.get("approver_type", "any_reviewer")
+        approver_ids: list[int] = node.get("approver_ids", [])
+
+        if approver_type == "any_reviewer":
+            # 任何拥有 sql_review 权限的用户
+            if "sql_review" not in operator.get("permissions", []):
+                raise AppException(
+                    f"您没有审批权限（节点「{node.get('node_name', '')}」要求 sql_review 权限）",
+                    code=403,
+                )
+
+        elif approver_type == "users":
+            # 指定用户列表
+            if operator.get("id") not in approver_ids:
+                raise AppException(
+                    f"您不在节点「{node.get('node_name', '')}」的审批人列表中",
+                    code=403,
+                )
+
+        elif approver_type == "group":
+            # 资源组成员
+            from app.models.user import User  # noqa: PLC0415
+            user_result = await db.execute(
+                select(User)
+                .options(selectinload(User.resource_groups))
+                .where(User.id == operator.get("id"))
+            )
+            user_obj = user_result.scalar_one_or_none()
+            user_group_ids = [rg.id for rg in (user_obj.resource_groups if user_obj else [])]
+            if not any(gid in approver_ids for gid in user_group_ids):
+                raise AppException(
+                    f"您不在节点「{node.get('node_name', '')}」要求的资源组中",
+                    code=403,
+                )
+
+    # ── 待审批工单（按节点权限过滤）────────────────────────────
+
+    @staticmethod
+    async def get_pending_for_user(
+        db: AsyncSession,
+        user: dict,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[int, list[dict]]:
+        """
+        返回当前用户有权限审批的待审批工单列表。
+        超管可看全部，普通用户按节点权限过滤。
+        """
+        from app.models.instance import Instance
+        from app.services.workflow import WorkflowService  # noqa: PLC0415
+
+        # 获取所有 PENDING_REVIEW 工单及其 audit 记录
+        stmt = (
+            select(SqlWorkflow, WorkflowAudit, Instance.instance_name)
+            .join(WorkflowAudit, WorkflowAudit.workflow_id == SqlWorkflow.id)
+            .outerjoin(Instance, SqlWorkflow.instance_id == Instance.id)
+            .where(SqlWorkflow.status == WorkflowStatus.PENDING_REVIEW)
+            .order_by(SqlWorkflow.created_at.desc())
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+
+        authorized = []
+        for workflow, audit, inst_name in rows:
+            groups_info = json.loads(audit.audit_auth_groups_info or "[]")
+            current_node = next(
+                (g for g in groups_info if g.get("status") == AuditStatus.PENDING),
+                None,
+            )
+            if current_node is None:
+                continue
+
+            # 检查当前用户是否有权限审批该节点
+            try:
+                await AuditService._check_approver_permission(db, user, current_node)
+                authorized.append((workflow, inst_name, current_node))
+            except AppException:
+                continue
+
+        total = len(authorized)
+        paginated = authorized[(page - 1) * page_size: page * page_size]
+
+        items = []
+        for workflow, inst_name, current_node in paginated:
+            item = WorkflowService._fmt_workflow(workflow, inst_name or "")
+            item["current_node"] = {
+                "order": current_node.get("order"),
+                "node_name": current_node.get("node_name"),
+                "approver_type": current_node.get("approver_type"),
+            }
+            items.append(item)
+
+        return total, items
+
+    # ── 审批日志 ──────────────────────────────────────────────
 
     @staticmethod
     async def get_audit_logs(db: AsyncSession, workflow_id: int) -> list[dict]:
@@ -257,7 +406,6 @@ class AuditService:
             .where(WorkflowLog.audit_id == audit.id)
             .order_by(WorkflowLog.created_at)
         )
-        logs = logs_result.scalars().all()
         return [
             {
                 "operator": log.operator,
@@ -265,7 +413,7 @@ class AuditService:
                 "remark": log.remark,
                 "created_at": log.created_at.isoformat() if log.created_at else "",
             }
-            for log in logs
+            for log in logs_result.scalars().all()
         ]
 
     @staticmethod
@@ -276,10 +424,21 @@ class AuditService:
         audit = result.scalar_one_or_none()
         if not audit:
             return None
+        groups_info = json.loads(audit.audit_auth_groups_info or "[]")
         return {
             "current_audit_auth_group": audit.current_audit_auth_group,
             "current_status": audit.current_status,
-            "audit_auth_groups_info": json.loads(audit.audit_auth_groups_info or "[]"),
+            "nodes": [
+                {
+                    "order": n.get("order"),
+                    "node_name": n.get("node_name"),
+                    "approver_type": n.get("approver_type"),
+                    "status": n.get("status"),
+                    "operator": n.get("operator"),
+                    "operated_at": n.get("operated_at"),
+                }
+                for n in groups_info
+            ],
         }
 
     # ── 内部工具 ──────────────────────────────────────────────

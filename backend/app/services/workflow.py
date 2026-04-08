@@ -81,13 +81,19 @@ class WorkflowService:
         if not inst:
             raise NotFoundException(f"实例 ID={data.instance_id} 不存在")
 
-        # 获取资源组审批链
+        # 获取资源组信息
         from app.models.user import ResourceGroup
         rg_result = await db.execute(
             select(ResourceGroup).where(ResourceGroup.id == data.group_id)
         )
         rg = rg_result.scalar_one_or_none()
-        audit_auth_groups = str(data.group_id)  # 默认用资源组ID作审批链
+        audit_auth_groups = str(data.group_id)
+
+        # 如果指定了审批流模板，生成节点快照
+        nodes_snapshot: list[dict] | None = None
+        if data.flow_id:
+            from app.services.approval_flow import ApprovalFlowService
+            nodes_snapshot = await ApprovalFlowService.snapshot_for_workflow(db, data.flow_id)
 
         # 自动 SQL 预检查
         engine = get_engine(inst)
@@ -117,6 +123,7 @@ class WorkflowService:
             engineer_id=operator.get("id", 0),
             status=WorkflowStatus.PENDING_REVIEW,
             audit_auth_groups=audit_auth_groups,
+            flow_id=data.flow_id,
             run_date_start=data.run_date_start,
             run_date_end=data.run_date_end,
         )
@@ -135,7 +142,7 @@ class WorkflowService:
 
         # 创建审批记录
         audit_svc = AuditService(workflow=workflow)
-        await audit_svc.create_audit(db, operator)
+        await audit_svc.create_audit(db, operator, nodes_snapshot=nodes_snapshot)
 
         logger.info("workflow_created: id=%s name=%s", workflow.id, data.workflow_name)
         return workflow
@@ -383,17 +390,9 @@ class WorkflowService:
     async def pending_for_me(
         db: AsyncSession, user: dict, page: int = 1, page_size: int = 20
     ) -> tuple[int, list[dict]]:
-        """获取需要当前用户审批的工单列表。"""
-        query = select(SqlWorkflow).where(
-            SqlWorkflow.status == WorkflowStatus.PENDING_REVIEW
-        )
-        if not user.get("is_superuser") and "sql_review" not in user.get("permissions", []):
-            return 0, []
-
-        total_q = await db.execute(select(func.count()).select_from(query.subquery()))
-        total = total_q.scalar_one()
-
-        query = query.order_by(SqlWorkflow.created_at.desc())
-        query = query.offset((page - 1) * page_size).limit(page_size)
-        result = await db.execute(query)
-        return total, [WorkflowService._fmt_workflow(w) for w in result.scalars().all()]
+        """
+        获取当前用户有权限审批的工单列表。
+        委托给 AuditService.get_pending_for_user 按节点权限过滤。
+        """
+        from app.services.audit import AuditService
+        return await AuditService.get_pending_for_user(db, user, page, page_size)

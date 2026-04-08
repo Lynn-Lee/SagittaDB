@@ -100,6 +100,12 @@ class SqlWorkflow(BaseModel):
         DateTime(timezone=True), comment="实际执行完成时间"
     )
 
+    # 审批流模板（多级审批时使用）
+    flow_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("approval_flow.id", ondelete="SET NULL"),
+        nullable=True, comment="审批流模板ID"
+    )
+
     # 数据导出工单专用
     export_format: Mapped[str | None] = mapped_column(
         String(10), comment="导出格式（csv/xlsx/json）"
