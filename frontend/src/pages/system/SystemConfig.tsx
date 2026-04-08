@@ -9,8 +9,21 @@ import apiClient from '@/api/client'
 
 const { Title, Text } = Typography
 
-const GROUP_ICONS: Record<string, string> = {
-  basic: '⚙️', mail: '📧', dingtalk: '🔔', wecom: '💼', feishu: '🦅', ldap: '🔐',
+// 平台图标：与登录页保持一致，使用 public/icons/ 官方矢量图
+const PlatformImg = ({ src, alt }: { src: string; alt: string }) => (
+  <img src={src} alt={alt} width={14} height={14}
+    style={{ objectFit: 'contain', verticalAlign: 'middle', marginRight: 5 }} />
+)
+
+const GROUP_LABEL: Record<string, React.ReactNode> = {
+  basic:    <span>⚙️ 基础设置</span>,
+  mail:     <span>📧 邮件通知</span>,
+  dingtalk: <span><PlatformImg src="/icons/dingtalk.svg" alt="钉钉" />钉钉通知</span>,
+  wecom:    <span><PlatformImg src="/icons/wecom.svg"    alt="企微" />企业微信通知</span>,
+  feishu:   <span><PlatformImg src="/icons/feishu.svg"   alt="飞书" />飞书通知</span>,
+  ldap:     <span><PlatformImg src="/icons/ldap.svg"     alt="LDAP" />LDAP 认证</span>,
+  ai:       <span>🤖 AI 功能</span>,
+  oidc:     <span>🔑 OIDC SSO</span>,
 }
 
 function TestButton({ label, onTest }: { label: string; onTest: () => Promise<any> }) {
@@ -176,7 +189,7 @@ export default function SystemConfig() {
 
   const tabItems = Object.entries(groups).map(([key, label]) => ({
     key,
-    label: `${GROUP_ICONS[key] || '⚙️'} ${label}`,
+    label: GROUP_LABEL[key] ?? <span>⚙️ {label as string}</span>,
     children: configs[key]?.length ? (
       <ConfigGroup group={key} items={configs[key]} form={form} />
     ) : (
