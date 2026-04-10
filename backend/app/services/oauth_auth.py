@@ -1,7 +1,7 @@
 """
 第三方 OAuth2 登录服务（Pack F）。
 
-支持：钉钉（DingTalk）/ 飞书（Feishu）/ 企业微信（WeCom）/ OIDC（通用）。
+支持：钉钉（DingTalk）/ 飞书（Feishu）/ 企业微信（WeCom）/ CAS（通用）。
 
 通用流程：
   1. get_authorize_url(provider, db, callback_url, state) → 平台授权 URL

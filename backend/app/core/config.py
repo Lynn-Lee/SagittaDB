@@ -66,13 +66,9 @@ class Settings(BaseSettings):
     LDAP_BIND_PASSWORD: str = ""
     LDAP_USER_DN_TEMPLATE: str = ""
 
-    # ─── OIDC（可选）─────────────────────────────────────────
-    OIDC_ENABLED: bool = False
-    OIDC_OP_AUTHORIZATION_ENDPOINT: str = ""
-    OIDC_OP_TOKEN_ENDPOINT: str = ""
-    OIDC_OP_JWKS_ENDPOINT: str = ""
-    OIDC_RP_CLIENT_ID: str = ""
-    OIDC_RP_CLIENT_SECRET: str = ""
+    # ─── CAS（通过 SystemConfig 数据库配置）──────────────────
+    # CAS 认证使用 SystemConfig 中的 cas_enabled / cas_server_url 等配置项
+    # 此处仅保留占位，避免未使用的字段引发 Pydantic 警告
 
     # ─── 对象存储 ─────────────────────────────────────────────
     STORAGE_TYPE: Literal["local", "s3", "oss", "azure"] = "local"
