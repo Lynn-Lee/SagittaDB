@@ -35,7 +35,7 @@
 | Pack C2 | 实例数据库注册管理 | ✅ | 100% |
 | Pack D | 数据脱敏、数据字典、工单模板、AI Text2SQL | ✅ | 100% |
 | Pack E | 多引擎补全、数据归档、SQL 回滚辅助、通知服务 | 🔧 | 85% |
-| Pack F | 第三方登录（LDAP/钉钉/飞书/企微/OIDC） | ✅ | 100% |
+| Pack F | 第三方登录（LDAP/钉钉/飞书/企微/CAS） | ✅ | 100% |
 | Pack G | 全链路测试、性能测试、安全扫描 | ✅ | 100% |
 | Pack H | Helm Chart、CI/CD 流水线、生产环境配置 | ✅ | 100% |
 | 品牌升级 | SagittaDB 品牌 UI 全面更新 | ✅ | 100% |
@@ -193,7 +193,7 @@
 - 字体：系统字体栈 → Inter + Noto Sans SC + JetBrains Mono
 - Logo：六边形矢标 SVG（明暗双版）
 - 登录页：深色 Hero 风格（背景光晕 + 网格纹理 + 磨砂玻璃卡片）
-- 第三方登录入口：LDAP/OIDC/钉钉/飞书/企微（Pack F 已完整接入）
+- 第三方登录入口：LDAP/CAS/钉钉/飞书/企微（Pack F 已完整接入）
 - Favicon 更新
 
 ### Pack F — 第三方登录集成 ✅
@@ -227,8 +227,8 @@
 - 获取企业 token → code 换 UserId → 拉取用户详情（name/email/biz_mail）
 - 配置项：CorpID / 自建应用 AgentId / 应用 Secret / 启用开关
 
-**OIDC 通用 SSO**
-- 支持 Keycloak / Okta / Azure AD / 任意 OIDC Provider
+**CAS 通用 SSO**
+- 支持 Keycloak / Okta / Azure AD / 任意 CAS Provider
 - 标准 authorization_code 流程，支持 userinfo endpoint 或 id_token payload 解码
 - 配置项：Client ID/Secret、授权端点、Token 端点、UserInfo 端点（独立 oidc 配置组）
 
@@ -380,7 +380,7 @@
 | brand_hotfix1~2 | LoginPage login 方法不存在、/auth/me/ token 时序问题 |
 | brand_hotfix_password | bcrypt 哈希算法 hexdigest→base64 修正 |
 | packF_ldap | LDAP 三步验证 + 用户自动 provision，ldap3 依赖接入 |
-| packF_oauth | 钉钉/飞书/企微/OIDC OAuth2 全流程，Redis state CSRF 防护，OAuthCallbackPage |
+| packF_oauth | 钉钉/飞书/企微/CAS OAuth2 全流程，Redis state CSRF 防护，OAuthCallbackPage |
 | packG_tests | 152 单元测试 + 31 集成测试；Locust 性能测试；Bandit+pip-audit+Trivy 安全扫描 CI |
 | rollback_hotfix | exp.AlterTable → exp.Alter（sqlglot 版本兼容修复）|
 | packH_deploy | Helm Chart（12 模板文件）+ docker-compose.prod.yml + 备份脚本 + GHCR 发布 + Helm lint CI |

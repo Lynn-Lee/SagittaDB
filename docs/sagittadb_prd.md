@@ -67,7 +67,7 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 | 钉钉扫码 OAuth | ✅ | DingTalk New API v2，scope=openid |
 | 飞书扫码 OAuth | ✅ | Feishu OIDC，复用 App ID/Secret |
 | 企业微信扫码 | ✅ | WeCom qrConnect，CorpID+AgentId |
-| OIDC 通用 SSO | ✅ | 支持 Keycloak/Okta/Azure AD，可配置3个端点 |
+| CAS 通用 SSO | ✅ | 支持 Keycloak/Okta/Azure AD，可配置3个端点 |
 
 所有第三方登录均支持用户自动创建（`auth_type` 标记来源），历史本地账号兼容迁移。
 
@@ -326,7 +326,7 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 | 企业微信 | 通知 Webhook；登录 CorpID/AgentId/AppSecret/启用开关 |
 | 飞书 | 通知 Webhook；App ID/App Secret；登录启用开关 |
 | LDAP 认证 | 服务器地址/Bind DN/密码/搜索 Base DN/用户过滤器/属性映射（uid/mail/cn） |
-| OIDC 登录 | Client ID/Secret、授权端点/Token 端点/UserInfo 端点、启用开关 |
+| CAS 登录 | Client ID/Secret、授权端点/Token 端点/UserInfo 端点、启用开关 |
 | AI 功能 | Anthropic API Key、模型选择 |
 
 所有敏感字段（密码/API Key/Secret）Fernet 加密存储，页面显示为 `******`，留空提交不覆盖原值。
@@ -457,7 +457,7 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 | Pack D | 数据脱敏、数据字典、工单模板、AI Text2SQL |
 | Pack E | 多引擎补全、数据归档、SQL 回滚辅助、通知服务 |
 | 品牌升级 | SagittaDB 品牌 UI 全面更新 |
-| Pack F | LDAP + 钉钉/飞书/企微/OIDC 第三方登录全部完成 |
+| Pack F | LDAP + 钉钉/飞书/企微/CAS 第三方登录全部完成 |
 | Pack G | 质量保障：单元测试 152 个、集成测试、性能测试、安全扫描 CI |
 | Pack H | 生产就绪：Helm Chart（K8s）、GHCR 镜像发布、备份脚本、多环境配置 |
 | Security Hardening | Token 黑名单 fail-close、生产环境 SECRET_KEY 强制校验、Text2SQL 服务分层、依赖版本收紧 |
