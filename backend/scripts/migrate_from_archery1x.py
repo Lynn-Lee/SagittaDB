@@ -10,7 +10,10 @@ Archery 1.x → 2.0 数据迁移脚本（Sprint 6）。
     --dst-url postgresql+psycopg2://archery:archery123@localhost:5432/archery \
     --dry-run
 """
-import argparse, sys, logging
+import argparse
+import logging
+import sys
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("migrate")
 
@@ -34,7 +37,6 @@ STATUS_MAP = {
 }
 
 def migrate_users(src, dst, dry):
-    import pymysql
     with src.cursor() as c:
         c.execute("SELECT id,username,password,email,first_name,last_name,is_superuser,is_active FROM auth_user")
         rows = c.fetchall()
@@ -70,9 +72,10 @@ def migrate_instances(src, dst, dry):
         rows = c.fetchall()
     logger.info("实例：%d 条", len(rows))
     if dry: return len(rows)
-    import sys, os; sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    from app.core.security import encrypt_field
+    import os; sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from sqlalchemy import text
+
+    from app.core.security import encrypt_field
     with dst.begin() as conn:
         for r in rows:
             conn.execute(text("""INSERT INTO sql_instance(instance_name,type,db_type,mode,host,port,"user",password,is_ssl,db_name,remark,is_active,tenant_id)
@@ -113,7 +116,7 @@ def main():
     args = parse_args()
     logger.info("Archery 1.x → 2.0 迁移 | dry_run=%s", args.dry_run)
     import pymysql
-    from sqlalchemy import create_engine, text
+    from sqlalchemy import create_engine
     src = pymysql.connect(host=args.src_host, port=args.src_port, user=args.src_user,
         password=args.src_pass, db=args.src_db, charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor)

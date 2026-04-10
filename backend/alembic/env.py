@@ -3,10 +3,11 @@ Alembic 迁移环境配置（同步方式，兼容所有运行环境）。
 """
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from app.core.config import settings
+
 # 导入所有模型，让 Alembic autogenerate 能发现
 from app.models import Base  # noqa: F401
 

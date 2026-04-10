@@ -52,7 +52,7 @@ async def current_user(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="认证服务暂时不可用，请稍后重试",
-        )
+        ) from None
 
     from app.services.user import UserService
     db_user = await UserService.get_by_id(db, int(user_id))

@@ -4,7 +4,8 @@
 import logging
 import time
 import uuid
-from urllib.parse import quote as urllib_quote, urlencode as urllib_urlencode
+from urllib.parse import quote as urllib_quote
+from urllib.parse import urlencode as urllib_urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse

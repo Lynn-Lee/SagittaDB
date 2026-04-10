@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
         _default_key = "CHANGE_ME_IN_PRODUCTION_USE_RANDOM_32_CHARS"
-        if self.SECRET_KEY == _default_key:
+        if _default_key == self.SECRET_KEY:
             if self.APP_ENV == "production":
                 raise ValueError(
                     "生产环境禁止使用默认 SECRET_KEY，"
