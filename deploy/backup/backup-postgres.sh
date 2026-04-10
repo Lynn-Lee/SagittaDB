@@ -8,9 +8,9 @@
 # 环境变量（可通过 .env 注入）:
 #   POSTGRES_HOST     数据库主机（默认 localhost）
 #   POSTGRES_PORT     端口（默认 5432）
-#   POSTGRES_USER     用户名（默认 archery）
+#   POSTGRES_USER     用户名（默认 sagitta）
 #   POSTGRES_PASSWORD 密码
-#   POSTGRES_DB       库名（默认 archery）
+#   POSTGRES_DB       库名（默认 sagittadb）
 #   BACKUP_DIR        本地备份目录（默认 /var/backups/sagittadb）
 #   BACKUP_RETAIN_DAYS 本地保留天数（默认 7）
 #   S3_BUCKET         S3 存储桶名（留空跳过上传）
@@ -21,8 +21,8 @@ set -euo pipefail
 # ─── 配置 ─────────────────────────────────────────────────────────────────────
 POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
-POSTGRES_USER="${POSTGRES_USER:-archery}"
-POSTGRES_DB="${POSTGRES_DB:-archery}"
+POSTGRES_USER="${POSTGRES_USER:-sagitta}"
+POSTGRES_DB="${POSTGRES_DB:-sagittadb}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/sagittadb}"
 BACKUP_RETAIN_DAYS="${BACKUP_RETAIN_DAYS:-7}"
 S3_BUCKET="${S3_BUCKET:-}"

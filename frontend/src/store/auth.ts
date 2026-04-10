@@ -1,7 +1,7 @@
 /**
  * 认证状态管理。
  * 使用 Zustand persist + localStorage 持久化 token。
- * storage name: 'archery2-auth'
+ * storage name: 'sagittadb-auth'
  */
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
@@ -56,7 +56,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'archery2-auth',
+      name: 'sagittadb-auth',
       storage: createJSONStorage(() => localStorage),
     }
   )

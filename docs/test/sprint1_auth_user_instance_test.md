@@ -204,7 +204,7 @@
 |---|---|
 | **用例编号** | TC-S1-014 |
 | **测试场景** | 实例密码在数据库中以密文存储 |
-| **测试步骤** | 1. 创建实例后<br>2. 执行 `docker compose exec postgres psql -U archery -d archery -c "SELECT instance_name, password FROM sql_instance LIMIT 5;"` |
+| **测试步骤** | 1. 创建实例后<br>2. 执行 `docker compose exec postgres psql -U sagitta -d sagittadb -c "SELECT instance_name, password FROM sql_instance LIMIT 5;"` |
 | **预期结果** | password 字段显示为 Fernet 加密密文（以 `gAAAAA` 开头），不是明文 |
 | **实际结果** | |
 | **状态** | ⬜ 未测试 |

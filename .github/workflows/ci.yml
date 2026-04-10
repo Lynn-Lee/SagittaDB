@@ -16,9 +16,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: archery_test
-          POSTGRES_USER: archery
-          POSTGRES_PASSWORD: archery123
+          POSTGRES_DB: sagittadb_test
+          POSTGRES_USER: sagitta
+          POSTGRES_PASSWORD: sagitta123
         ports: ["5432:5432"]
         options: >-
           --health-cmd pg_isready
@@ -61,8 +61,8 @@ jobs:
       - name: Run unit tests with coverage
         working-directory: backend
         env:
-          DATABASE_URL: postgresql+asyncpg://archery:archery123@localhost:5432/archery_test
-          DATABASE_URL_SYNC: postgresql+psycopg2://archery:archery123@localhost:5432/archery_test
+          DATABASE_URL: postgresql+asyncpg://sagitta:sagitta123@localhost:5432/sagittadb_test
+          DATABASE_URL_SYNC: postgresql+psycopg2://sagitta:sagitta123@localhost:5432/sagittadb_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-for-ci-only
           FERNET_KEY: dGhpcy1pcy1hLXRlc3Qta2V5LWZvci1jaS1vbmx5IQ==
@@ -77,8 +77,8 @@ jobs:
       - name: Run integration tests
         working-directory: backend
         env:
-          DATABASE_URL: postgresql+asyncpg://archery:archery123@localhost:5432/archery_test
-          DATABASE_URL_SYNC: postgresql+psycopg2://archery:archery123@localhost:5432/archery_test
+          DATABASE_URL: postgresql+asyncpg://sagitta:sagitta123@localhost:5432/sagittadb_test
+          DATABASE_URL_SYNC: postgresql+psycopg2://sagitta:sagitta123@localhost:5432/sagittadb_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-for-ci-only
           FERNET_KEY: dGhpcy1pcy1hLXRlc3Qta2V5LWZvci1jaS1vbmx5IQ==

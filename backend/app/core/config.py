@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # ─── 数据库 ───────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://archery:archery123@localhost:5432/archery"
-    DATABASE_URL_SYNC: str = "postgresql+psycopg2://archery:archery123@localhost:5432/archery"
+    DATABASE_URL: str = "postgresql+asyncpg://sagitta:sagitta123@localhost:5432/sagittadb"
+    DATABASE_URL_SYNC: str = "postgresql+psycopg2://sagitta:sagitta123@localhost:5432/sagittadb"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 30
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     PROMETHEUS_URL: str = "http://localhost:9090"
     ALERTMANAGER_URL: str = "http://localhost:9093"
     GRAFANA_URL: str = "http://localhost:3000"
-    GRAFANA_CLIENT_ID: str = "archery"
+    GRAFANA_CLIENT_ID: str = "sagitta"
     GRAFANA_CLIENT_SECRET: str = ""
 
     # ─── AI 能力（可选）──────────────────────────────────────

@@ -35,10 +35,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
-    logger.info("archery2.0 starting env=%s version=2.0.0", settings.APP_ENV)
+    logger.info("SagittaDB starting env=%s version=2.0.0", settings.APP_ENV)
     yield
     await engine.dispose()
-    logger.info("archery2.0 shutdown complete")
+    logger.info("SagittaDB shutdown complete")
 
 
 app = FastAPI(

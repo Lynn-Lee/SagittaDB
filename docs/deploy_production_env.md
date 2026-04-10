@@ -84,8 +84,8 @@ vim .env
 
 ```bash
 # ── 数据库（生产环境必须修改密码）───────────────────
-DATABASE_URL=postgresql+asyncpg://archery:<强密码>@postgres:5432/archery
-DATABASE_URL_SYNC=postgresql+psycopg2://archery:<强密码>@postgres:5432/archery
+DATABASE_URL=postgresql+asyncpg://sagitta:<强密码>@postgres:5432/sagittadb
+DATABASE_URL_SYNC=postgresql+psycopg2://sagitta:<强密码>@postgres:5432/sagittadb
 
 # ── Redis（生产环境必须修改密码）────────────────────
 REDIS_URL=redis://:<Redis强密码>@redis:6379/0
@@ -108,8 +108,8 @@ ALERTMANAGER_URL=http://alertmanager:9093
 GRAFANA_URL=https://your-domain.com:3000     # 修改为实际域名
 
 # ── PostgreSQL Docker 初始化 ─────────────────────────
-POSTGRES_DB=archery
-POSTGRES_USER=archery
+POSTGRES_DB=sagittadb
+POSTGRES_USER=sagitta
 POSTGRES_PASSWORD=<与 DATABASE_URL 中一致的强密码>
 
 # ── 通知配置（按需填写）──────────────────────────────
@@ -443,8 +443,8 @@ ingress:
 externalDatabase:
   host: "your-rds-endpoint.rds.amazonaws.com"   # 修改为实际 RDS 地址
   port: 5432
-  database: archery
-  username: archery
+  database: sagittadb
+  username: sagitta
 
 externalRedis:
   host: "your-elasticache.cache.amazonaws.com"   # 修改为实际 Redis 地址
@@ -577,7 +577,7 @@ bash deploy/backup/backup-postgres.sh
 
 # K8s 环境
 kubectl exec -n sagittadb $BACKEND_POD -- \
-  bash -c "PGPASSWORD=<密码> pg_dump -h <DB_HOST> -U archery archery | gzip" \
+  bash -c "PGPASSWORD=<密码> pg_dump -h <DB_HOST> -U sagitta sagittadb | gzip" \
   > /local/path/sagittadb_$(date +%Y%m%d).sql.gz
 ```
 
@@ -586,28 +586,28 @@ kubectl exec -n sagittadb $BACKEND_POD -- \
 ```bash
 # Docker Compose 环境
 bash deploy/backup/restore-postgres.sh \
-  /data/sagittadb/backups/sagittadb_archery_20260326_020000.sql.gz
+  /data/sagittadb/backups/sagittadb_sagitta_20260326_020000.sql.gz
 
 # 手动恢复（任意环境）
 zcat sagittadb_xxx.sql.gz | \
-  PGPASSWORD=<密码> psql -h localhost -U archery -d archery
+  PGPASSWORD=<密码> psql -h localhost -U sagitta -d sagittadb
 ```
 
 ### 5.3 备份验证（每月执行一次）
 
 ```bash
 # 1. 创建验证库
-docker compose exec postgres createdb -U archery archery_verify
+docker compose exec postgres createdb -U sagitta sagittadb_verify
 
 # 2. 恢复到验证库
-bash deploy/backup/restore-postgres.sh /path/to/backup.sql.gz archery_verify
+bash deploy/backup/restore-postgres.sh /path/to/backup.sql.gz sagittadb_verify
 
 # 3. 验证关键数据
-docker compose exec postgres psql -U archery -d archery_verify \
+docker compose exec postgres psql -U sagitta -d sagittadb_verify \
   -c "SELECT COUNT(*) FROM sql_users; SELECT COUNT(*) FROM sql_workflow;"
 
 # 4. 清理验证库
-docker compose exec postgres dropdb -U archery archery_verify
+docker compose exec postgres dropdb -U sagitta sagittadb_verify
 ```
 
 ---
@@ -650,7 +650,7 @@ docker compose -f deploy/docker-compose.yml restart backend
 
 # PostgreSQL 磁盘满 → 清理
 du -sh /data/sagittadb/postgres     # 检查占用
-docker compose exec postgres vacuumdb -U archery --analyze archery  # 清理垃圾
+docker compose exec postgres vacuumdb -U sagitta --analyze sagittadb  # 清理垃圾
 
 # Redis 内存告警 → 查看占用
 docker compose exec redis redis-cli -a <密码> info memory

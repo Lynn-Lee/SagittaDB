@@ -133,7 +133,7 @@
 |---|---|
 | **用例编号** | TC-S0-009 |
 | **测试场景** | PostgreSQL 服务正常，核心表已创建 |
-| **测试步骤** | 1. 执行 `docker compose exec postgres psql -U archery -d archery -c "\dt"` |
+| **测试步骤** | 1. 执行 `docker compose exec postgres psql -U sagitta -d sagittadb -c "\dt"` |
 | **预期结果** | 显示 sql_users、sql_instance、sql_workflow 等核心数据表 |
 | **实际结果** | |
 | **状态** | ⬜ 未测试 |

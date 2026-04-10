@@ -121,7 +121,7 @@
 |---|---|
 | **用例编号** | TC-G-008 |
 | **测试场景** | 本地执行全部集成测试，验证均通过 |
-| **前置条件** | PostgreSQL 测试库 `archery_test` 已创建（或由 conftest 自动创建） |
+| **前置条件** | PostgreSQL 测试库 `sagittadb_test` 已创建（或由 conftest 自动创建） |
 | **测试步骤** | 1. 确保环境变量 DATABASE_URL 指向可用 PostgreSQL<br>2. 执行 `pytest tests/integration/ -v` |
 | **预期结果** | 36 个集成测试全部通过 |
 | **实际结果** | |

@@ -138,9 +138,9 @@ app:
 postgresql:
   enabled: true
   auth:
-    database: archery
-    username: archery
-    password: "archery123"
+    database: sagittadb
+    username: sagitta
+    password: "sagitta123"
   primary:
     persistence:
       size: 20Gi
@@ -156,8 +156,8 @@ postgresql:
 externalDatabase:
   host: "rds.example.com"
   port: 5432
-  database: archery
-  username: archery
+  database: sagittadb
+  username: sagitta
   password: "CHANGE_ME"
 
 # ─── Redis（内置 bitnami/redis）──────────────────────────────────────────────

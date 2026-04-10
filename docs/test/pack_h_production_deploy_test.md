@@ -163,7 +163,7 @@
 | **用例编号** | TC-H-011 |
 | **测试场景** | 备份脚本成功生成 .sql.gz 备份文件 |
 | **测试步骤** | 1. 确保 PostgreSQL 容器正在运行<br>2. 执行 `bash deploy/backup/backup-postgres.sh`<br>3. 查看输出和生成的文件 |
-| **预期结果** | 生成 `archery_YYYYMMDD_HHMMSS.sql.gz` 文件，脚本输出"备份完成" |
+| **预期结果** | 生成 `sagittadb_YYYYMMDD_HHMMSS.sql.gz` 文件，脚本输出"备份完成" |
 | **实际结果** | |
 | **状态** | ⬜ 未测试 |
 
@@ -175,7 +175,7 @@
 |---|---|
 | **用例编号** | TC-H-012 |
 | **测试场景** | 生成的备份文件可正常解压，内容为有效 SQL |
-| **测试步骤** | 1. 找到备份文件（如 `/tmp/backup/archery_xxx.sql.gz`）<br>2. 执行 `gzip -t archery_xxx.sql.gz`（验证完整性）<br>3. 执行 `zcat archery_xxx.sql.gz \| head -20` |
+| **测试步骤** | 1. 找到备份文件（如 `/tmp/backup/sagittadb_xxx.sql.gz`）<br>2. 执行 `gzip -t sagittadb_xxx.sql.gz`（验证完整性）<br>3. 执行 `zcat sagittadb_xxx.sql.gz \| head -20` |
 | **预期结果** | gzip 检查通过，SQL 内容包含 `PostgreSQL database dump` 标识 |
 | **实际结果** | |
 | **状态** | ⬜ 未测试 |
@@ -188,8 +188,8 @@
 |---|---|
 | **用例编号** | TC-H-013 |
 | **测试场景** | 恢复脚本能从备份文件恢复数据库 |
-| **测试步骤** | 1. 创建测试恢复库：`createdb archery_restore_test`<br>2. 执行 `bash deploy/backup/restore-postgres.sh /path/to/backup.sql.gz archery_restore_test`<br>3. 确认交互提示后恢复 |
-| **预期结果** | 恢复成功，可连接 archery_restore_test 库并查看数据 |
+| **测试步骤** | 1. 创建测试恢复库：`createdb sagittadb_restore_test`<br>2. 执行 `bash deploy/backup/restore-postgres.sh /path/to/backup.sql.gz sagittadb_restore_test`<br>3. 确认交互提示后恢复 |
+| **预期结果** | 恢复成功，可连接 sagittadb_restore_test 库并查看数据 |
 | **实际结果** | |
 | **状态** | ⬜ 未测试 |
 

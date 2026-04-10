@@ -40,8 +40,8 @@ postgresql:
 externalDatabase:
   host: "sagittadb-prod.cluster-xxxxx.ap-southeast-1.rds.amazonaws.com"
   port: 5432
-  database: archery
-  username: archery
+  database: sagittadb
+  username: sagitta
   # password: set via --set or sealed-secret
 
 # 生产环境使用 ElastiCache / Cloud Redis

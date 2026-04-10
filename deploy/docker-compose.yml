@@ -20,15 +20,15 @@ services:
     image: postgres:16-alpine
     restart: always
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-archery}
-      POSTGRES_USER: ${POSTGRES_USER:-archery}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-archery123}
+      POSTGRES_DB: ${POSTGRES_DB:-sagittadb}
+      POSTGRES_USER: ${POSTGRES_USER:-sagitta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sagitta123}
     volumes:
       - pg_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-archery}"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-sagitta}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -72,8 +72,8 @@ services:
       APP_ENV: production
       DEBUG: "false"
       LOG_LEVEL: WARNING
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-archery}:${POSTGRES_PASSWORD:-archery123}@postgres:5432/${POSTGRES_DB:-archery}
-      DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-archery}:${POSTGRES_PASSWORD:-archery123}@postgres:5432/${POSTGRES_DB:-archery}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sagitta}:${POSTGRES_PASSWORD:-sagitta123}@postgres:5432/${POSTGRES_DB:-sagittadb}
+      DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-sagitta}:${POSTGRES_PASSWORD:-sagitta123}@postgres:5432/${POSTGRES_DB:-sagittadb}
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
     ports:
       - "8000:8000"
@@ -103,7 +103,7 @@ services:
     env_file: ../.env
     environment:
       APP_ENV: production
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-archery}:${POSTGRES_PASSWORD:-archery123}@postgres:5432/${POSTGRES_DB:-archery}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sagitta}:${POSTGRES_PASSWORD:-sagitta123}@postgres:5432/${POSTGRES_DB:-sagittadb}
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
     depends_on:
       postgres:
@@ -135,7 +135,7 @@ services:
     env_file: ../.env
     environment:
       APP_ENV: production
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-archery}:${POSTGRES_PASSWORD:-archery123}@postgres:5432/${POSTGRES_DB:-archery}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sagitta}:${POSTGRES_PASSWORD:-sagitta123}@postgres:5432/${POSTGRES_DB:-sagittadb}
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
     depends_on:
       - redis

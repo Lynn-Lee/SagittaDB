@@ -103,8 +103,8 @@ docker compose ps
 ```bash
 # ── 数据库 ──────────────────────────────────────────
 # 测试环境使用 Docker 内部网络名 postgres
-DATABASE_URL=postgresql+asyncpg://archery:archery123@postgres:5432/archery
-DATABASE_URL_SYNC=postgresql+psycopg2://archery:archery123@postgres:5432/archery
+DATABASE_URL=postgresql+asyncpg://sagitta:sagitta123@postgres:5432/sagittadb
+DATABASE_URL_SYNC=postgresql+psycopg2://sagitta:sagitta123@postgres:5432/sagittadb
 
 # ── Redis ────────────────────────────────────────────
 REDIS_URL=redis://:redis123@redis:6379/0
@@ -130,9 +130,9 @@ AI_PROVIDER=none
 AI_API_KEY=
 
 # ── PostgreSQL 初始化（Docker 内部使用）─────────────
-POSTGRES_DB=archery
-POSTGRES_USER=archery
-POSTGRES_PASSWORD=archery123
+POSTGRES_DB=sagittadb
+POSTGRES_USER=sagitta
+POSTGRES_PASSWORD=sagitta123
 ```
 
 ---
@@ -213,7 +213,7 @@ docker compose exec backend bash
 docker compose exec backend python -c "from app.core.config import settings; print(settings.DATABASE_URL)"
 
 # 连接 PostgreSQL
-docker compose exec postgres psql -U archery -d archery
+docker compose exec postgres psql -U sagitta -d sagittadb
 
 # 连接 Redis
 docker compose exec redis redis-cli -a redis123
@@ -229,11 +229,11 @@ docker compose exec backend alembic current
 docker compose exec backend alembic upgrade head
 
 # 查看所有表
-docker compose exec postgres psql -U archery -d archery -c "\dt"
+docker compose exec postgres psql -U sagitta -d sagittadb -c "\dt"
 
 # 重置 admin 密码（忘记密码时）
 NEW_HASH=$(docker compose exec backend python -c "from app.core.security import hash_password; print(hash_password('Admin@2024!'))" | tail -1)
-docker compose exec postgres psql -U archery -d archery -c "UPDATE sql_users SET password='$NEW_HASH' WHERE username='admin';"
+docker compose exec postgres psql -U sagitta -d sagittadb -c "UPDATE sql_users SET password='$NEW_HASH' WHERE username='admin';"
 ```
 
 ---
@@ -275,14 +275,14 @@ pytest tests/unit/ --cov=app --cov-report=term-missing
 
 ### 7.2 集成测试
 
-集成测试需要连接 PostgreSQL，使用 `archery_test` 库（由 conftest 自动创建）：
+集成测试需要连接 PostgreSQL，使用 `sagittadb_test` 库（由 conftest 自动创建）：
 
 ```bash
 # 创建测试库（首次）
-docker compose exec postgres psql -U archery -c "CREATE DATABASE archery_test;"
+docker compose exec postgres psql -U sagitta -c "CREATE DATABASE sagittadb_test;"
 
 # 运行集成测试（需设置正确的 DATABASE_URL）
-export DATABASE_URL=postgresql+asyncpg://archery:archery123@localhost:5432/archery
+export DATABASE_URL=postgresql+asyncpg://sagitta:sagitta123@localhost:5432/sagittadb
 export REDIS_URL=redis://:redis123@localhost:6379/0
 export SECRET_KEY=test-secret-key-for-ci-only
 export FERNET_KEY=dGhpcy1pcy1hLXRlc3Qta2V5LWZvci1jaS1vbmx5IQ==
@@ -336,7 +336,7 @@ docker compose restart backend
 # 常见：数据库版本不一致
 docker compose exec backend alembic history
 # 若需重置：（⚠️ 仅测试环境）
-docker compose exec postgres psql -U archery -d archery -c "DROP TABLE IF EXISTS alembic_version;"
+docker compose exec postgres psql -U sagitta -d sagittadb -c "DROP TABLE IF EXISTS alembic_version;"
 docker compose exec backend alembic upgrade head
 ```
 
