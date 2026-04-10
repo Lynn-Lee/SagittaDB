@@ -25,12 +25,6 @@ def _make_config(**overrides):
         "wecom_login_corp_id":      "wx_corp",
         "wecom_login_agent_id":     "1000001",
         "wecom_login_app_secret":   "corp_secret",
-        "oidc_enabled":             "true",
-        "oidc_client_id":           "oidc_client",
-        "oidc_client_secret":       "oidc_secret",
-        "oidc_authorization_endpoint": "https://sso.example.com/auth",
-        "oidc_token_endpoint":      "https://sso.example.com/token",
-        "oidc_userinfo_endpoint":   "https://sso.example.com/userinfo",
     }
     base.update(overrides)
     return base
@@ -90,26 +84,3 @@ async def test_wecom_authorize_url(mock_db):
         url = await oauth_auth.get_authorize_url("wecom", mock_db, "http://cb", "st3")
     assert "work.weixin.qq.com" in url
     assert "wx_corp" in url
-
-
-@pytest.mark.skip(reason="OIDC provider not implemented in oauth_auth")
-@pytest.mark.asyncio
-async def test_oidc_authorize_url(mock_db):
-    cfg = _make_config()
-    with patch("app.services.oauth_auth.SystemConfigService.get_value",
-               side_effect=await _mock_get_value(cfg)):
-        url = await oauth_auth.get_authorize_url("oidc", mock_db, "http://cb", "st4")
-    assert "sso.example.com" in url
-    assert "oidc_client" in url
-
-
-@pytest.mark.skip(reason="OIDC provider not implemented in oauth_auth")
-@pytest.mark.asyncio
-async def test_oidc_missing_client_id_raises(mock_db):
-    cfg = _make_config(oidc_client_id="")
-    with (
-        patch("app.services.oauth_auth.SystemConfigService.get_value",
-              side_effect=await _mock_get_value(cfg)),
-        pytest.raises(ValueError, match="未配置"),
-    ):
-        await oauth_auth.get_authorize_url("oidc", mock_db, "http://cb", "st5")

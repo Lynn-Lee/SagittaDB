@@ -31,12 +31,6 @@ class TestConfigDefinitions:
         assert "ldap_bind_password" in ldap_keys
         assert "ldap_enabled" in ldap_keys
 
-    @pytest.mark.skip(reason="OIDC group config not implemented in system_config")
-    def test_oidc_group_config_exists(self):
-        oidc_keys = [k for k, v in CONFIG_DEFINITIONS.items() if v[1] == "oidc"]
-        assert "oidc_enabled" in oidc_keys
-        assert "oidc_client_id" in oidc_keys
-        assert "oidc_client_secret" in oidc_keys
 
     def test_ai_group_config_exists(self):
         ai_keys = [k for k, v in CONFIG_DEFINITIONS.items() if v[1] == "ai"]
