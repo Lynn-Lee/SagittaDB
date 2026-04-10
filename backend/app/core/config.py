@@ -1,6 +1,10 @@
 """
 应用配置 — 通过 Pydantic Settings 从环境变量读取，类型安全。
 所有配置项均有默认值，便于开发环境零配置启动。
+
+注意：认证（LDAP/CAS）、通知（钉钉/飞书/企微/邮件）、AI 等功能
+统一使用 SystemConfig 数据库配置（通过 /api/v1/system/config 管理），
+不在此处通过环境变量配置（方便运行时修改，无需重启服务）。
 """
 from typing import Literal
 
@@ -47,41 +51,11 @@ class Settings(BaseSettings):
     PROMETHEUS_URL: str = "http://localhost:9090"
     ALERTMANAGER_URL: str = "http://localhost:9093"
     GRAFANA_URL: str = "http://localhost:3000"
-    GRAFANA_CLIENT_ID: str = "sagitta"
-    GRAFANA_CLIENT_SECRET: str = ""
 
-    # ─── AI 能力（可选）──────────────────────────────────────
-    AI_PROVIDER: Literal["openai", "anthropic", "none"] = "none"
-    AI_API_KEY: str = ""
-
-    # ─── goInception（可选增强）──────────────────────────────
+    # ─── goInception（可选增强，用于 MySQL SQL 审核）──────────
     ENABLE_GOINCEPTION: bool = False
     GO_INCEPTION_HOST: str = ""
     GO_INCEPTION_PORT: int = 4000
-
-    # ─── LDAP（可选）─────────────────────────────────────────
-    LDAP_ENABLED: bool = False
-    LDAP_SERVER_URI: str = ""
-    LDAP_BIND_DN: str = ""
-    LDAP_BIND_PASSWORD: str = ""
-    LDAP_USER_DN_TEMPLATE: str = ""
-
-    # ─── CAS（通过 SystemConfig 数据库配置）──────────────────
-    # CAS 认证使用 SystemConfig 中的 cas_enabled / cas_server_url 等配置项
-    # 此处仅保留占位，避免未使用的字段引发 Pydantic 警告
-
-    # ─── 对象存储 ─────────────────────────────────────────────
-    STORAGE_TYPE: Literal["local", "s3", "oss", "azure"] = "local"
-    STORAGE_LOCAL_PATH: str = "/app/downloads"
-
-    # ─── 通知 ─────────────────────────────────────────────────
-    DINGTALK_WEBHOOK: str = ""
-    FEISHU_WEBHOOK: str = ""
-    SMTP_HOST: str = ""
-    SMTP_PORT: int = 465
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = ""
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
