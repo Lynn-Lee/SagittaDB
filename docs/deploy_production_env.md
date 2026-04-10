@@ -1,6 +1,6 @@
 # SagittaDB 生产环境部署文档
 
-> **文档版本：** v1.1 · 2026-04-08
+> **文档版本：** v1.2 · 2026-04-11
 > **适用版本：** SagittaDB v1.0-GA
 > **部署方式：** 方案一 Docker Compose 生产模式 / 方案二 Kubernetes + Helm Chart
 > **目标读者：** 运维工程师、DevOps、系统管理员

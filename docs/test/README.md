@@ -1,7 +1,7 @@
 # SagittaDB 功能测试文档索引
 
 > **项目：** SagittaDB 矢准数据 v1.0-beta
-> **文档版本：** v1.0 · 2026-03-26
+> **文档版本：** v1.1 · 2026-04-11
 > **测试环境：** http://localhost（前端）/ http://localhost:8000（后端）
 > **默认账号：** admin / Admin@2024!
 
@@ -92,4 +92,4 @@ open http://localhost:3000      # Grafana (admin/admin)
 
 ---
 
-*SagittaDB 矢准数据 · 功能测试文档 v1.0 · 2026-03-26*
+*SagittaDB 矢准数据 · 功能测试文档 v1.1 · 2026-04-11*
