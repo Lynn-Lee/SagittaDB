@@ -112,14 +112,12 @@ POSTGRES_DB=sagittadb
 POSTGRES_USER=sagitta
 POSTGRES_PASSWORD=<与 DATABASE_URL 中一致的强密码>
 
-# ── 通知配置（按需填写）──────────────────────────────
-DINGTALK_WEBHOOK=https://oapi.dingtalk.com/robot/send?access_token=xxx
-FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
-SMTP_HOST=smtp.example.com
-SMTP_PORT=465
-SMTP_USER=notify@example.com
-SMTP_PASSWORD=<邮件密码>
-SMTP_FROM=SagittaDB <notify@example.com>
+# ── 通知配置（通过系统配置页面管理）──────────────────
+# 以下配置已废弃，请通过 Web UI「系统配置」页面配置
+# DINGTALK_WEBHOOK=...
+# FEISHU_WEBHOOK=...
+# SMTP_HOST=...
+# 登录后访问：系统配置 → 钉钉通知 / 飞书通知 / 邮件通知
 ```
 
 ### 2.6 配置数据卷持久化
