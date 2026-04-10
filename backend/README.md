@@ -48,17 +48,23 @@ app/
 └── tasks/        Celery 异步任务
 ```
 
-## Sprint 进度
+## 整体进度（v1.0-GA 全部完成）
 
-| Sprint | 模块 | 状态 |
-|---|---|---|
-| Sprint 0 | 项目骨架、配置、基础模型、引擎协议 | ✅ 完成 |
-| Sprint 1 | 认证（JWT/LDAP/OIDC）、用户、实例管理 | ⏳ 待开始 |
-| Sprint 2 | 引擎层完整实现、查询权限、数据脱敏 | ⏳ 待开始 |
-| Sprint 3 | SQL 工单审批执行流程、WebSocket | ⏳ 待开始 |
-| Sprint 4 | 慢日志、会话管理、归档、Binlog | ⏳ 待开始 |
-| Sprint 5 | 可观测中心、Prometheus、Grafana SSO | ⏳ 待开始 |
-| Sprint 6 | 全链路测试、安全扫描、数据迁移工具 | ⏳ 待开始 |
+| 模块 | 状态 |
+|---|---|
+| Sprint 0 — 项目骨架 | ✅ 完成 |
+| Sprint 1 — 认证、用户、实例管理 | ✅ 完成 |
+| Sprint 2 — 引擎层、在线查询、查询权限 | ✅ 完成 |
+| Pack A — SQL 工单全流程 + 运维工具 | ✅ 完成 |
+| Pack B — 可观测中心 + 迁移脚本 | ✅ 完成 |
+| Pack C — 系统配置、审计日志、资源组、数据库注册 | ✅ 完成 |
+| Pack D — 数据脱敏、数据字典、工单模板、AI Text2SQL | ✅ 完成 |
+| Pack E — 多引擎补全、数据归档、SQL 回滚、通知服务 | 🔧 完成（85%）|
+| Pack F — 第三方登录（LDAP/钉钉/飞书/企微/CAS） | ✅ 完成 |
+| Pack G — 全链路测试、性能测试、安全扫描 | ✅ 完成 |
+| Pack H — Helm Chart、CI/CD、生产环境配置 | ✅ 完成 |
+| Security Hardening — 安全加固 | ✅ 完成 |
+| 多级审批流 | ✅ 完成 |
 
 ## 代码规范
 

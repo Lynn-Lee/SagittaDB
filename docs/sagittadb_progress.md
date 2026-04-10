@@ -230,10 +230,10 @@
 **CAS 通用 SSO**
 - 支持 Keycloak / Okta / Azure AD / 任意 CAS Provider
 - 标准 authorization_code 流程，支持 userinfo endpoint 或 id_token payload 解码
-- 配置项：Client ID/Secret、授权端点、Token 端点、UserInfo 端点（独立 oidc 配置组）
+- 配置项：Client ID/Secret、授权端点、Token 端点、UserInfo 端点（独立 cas 配置组）
 
 **系统配置扩展**
-- CONFIG_GROUPS 新增 `oidc` 分组
+- CONFIG_GROUPS 新增 `cas` 分组
 - 钉钉配置组新增 3 项登录参数；飞书新增登录开关；企微新增 4 项登录参数
 - 共新增 11 个 system_config 配置项，全部可在 UI「系统配置」页面管理
 

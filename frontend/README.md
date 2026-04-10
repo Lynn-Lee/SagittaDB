@@ -60,22 +60,22 @@ src/
 参考设计文档第十章，核心原则：
 
 - **字体**：系统字体栈（Mac→SF Pro，Win→Segoe UI），零包体积，JetBrains Mono 仅用于代码编辑器
-- **主色**：`#1558A8`，仅用于主按钮、链接、选中态
-- **背景**：页面底色 `#F5F5F7`，卡片 `#FFFFFF`
+- **主色**：`#165DFF`（Space Tech Blue），用于主按钮、链接、选中态
+- **深色背景**：`#0F172A`（Tech Charcoal），用于 Header 等深色区域
 - **层级**：无阴影，用背景色 + 边框区分层次
-- **圆角**：按钮 8px，卡片 12px，Modal 16px
+- **圆角**：按钮 6px，卡片 6px，Modal 8px
 - **间距**：8px 基础网格
 
 所有 Ant Design 5 Token 已在 `src/main.tsx` 中统一配置。
 
-## Sprint 进度
+## 整体进度（v1.0-GA 全部完成）
 
-| Sprint | 模块 | 状态 |
-|---|---|---|
-| Sprint 0 | 骨架、路由、布局、登录页 | ✅ 完成 |
-| Sprint 1 | 认证流程、实例管理页面 | ⏳ 待开始 |
-| Sprint 2 | 在线查询（Monaco + 结果表格）| ⏳ 待开始 |
-| Sprint 3 | SQL 工单（提交/审核/执行/WebSocket）| ⏳ 待开始 |
-| Sprint 4 | 运维工具页面 | ⏳ 待开始 |
-| Sprint 5 | 可观测中心（Recharts 趋势图）| ⏳ 待开始 |
-| Sprint 6 | 联调测试 | ⏳ 待开始 |
+| 模块 | 状态 |
+|---|---|
+| Sprint 0 — 骨架、路由、布局、登录页 | ✅ 完成 |
+| Sprint 1 — 认证流程、实例管理页面 | ✅ 完成 |
+| Sprint 2 — 在线查询（Monaco + 结果表格）| ✅ 完成 |
+| Sprint 3 — SQL 工单（提交/审核/执行/WebSocket）| ✅ 完成 |
+| Sprint 4 — 运维工具页面 | ✅ 完成 |
+| Sprint 5 — 可观测中心（Recharts 趋势图）| ✅ 完成 |
+| Sprint 6 — 联调测试、品牌升级 | ✅ 完成 |

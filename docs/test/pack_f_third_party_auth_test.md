@@ -1,7 +1,7 @@
-# Pack F 功能测试文档 — 第三方登录（LDAP/钉钉/飞书/企微/OIDC）
+# Pack F 功能测试文档 — 第三方登录（LDAP/钉钉/飞书/企微/CAS）
 
 > **测试版本：** SagittaDB v1.0-beta
-> **对应计划：** Pack F — 第三方登录集成（LDAP 企业目录 + 4 种 OAuth2/OIDC）
+> **对应计划：** Pack F — 第三方登录集成（LDAP 企业目录 + 4 种 OAuth2/CAS）
 > **测试环境：** http://localhost（前端）/ http://localhost:8000（后端）
 > **前置条件：** Sprint 1 测试通过，各平台应用已创建并获得相应 AppKey/Secret
 > **测试账号：** admin / Admin@2024!
@@ -14,9 +14,9 @@
 |---|---|
 | LDAP 登录 | 三步验证、用户自动创建、配置管理 |
 | 钉钉扫码登录 | OAuth2 授权流程、用户 provision |
-| 飞书扫码登录 | OIDC 流程、token 交换 |
+| 飞书扫码登录 | CAS 流程、ticket 验证 |
 | 企业微信扫码登录 | qrConnect 流程 |
-| OIDC 通用 SSO | Keycloak/Okta 等标准 OIDC |
+| 通用 CAS SSO | Keycloak/Okta 等标准 CAS Provider |
 | 安全机制 | state 防 CSRF、回调 URL 验证 |
 
 ---
@@ -191,30 +191,30 @@
 
 ---
 
-## 五、OIDC 通用 SSO 测试
+## 五、通用 CAS SSO 测试
 
-### TC-F-013 OIDC 配置保存
+### TC-F-013 CAS 配置保存
 
 | 项目 | 内容 |
 |---|---|
 | **用例编号** | TC-F-013 |
-| **测试场景** | 配置 OIDC Provider 信息 |
-| **前置条件** | 有可用的 OIDC Provider（如 Keycloak） |
-| **测试步骤** | 1. 系统配置 → OIDC 登录 Tab<br>2. 填写 Client ID、Client Secret、授权端点、Token 端点、UserInfo 端点<br>3. 开启 OIDC 登录<br>4. 保存 |
-| **预期结果** | 配置保存成功，登录页出现 OIDC 登录入口 |
+| **测试场景** | 配置 Keycloak/CAS 信息 |
+| **前置条件** | 有可用的 Keycloak/CAS（如 Keycloak） |
+| **测试步骤** | 1. 系统配置 → CAS 登录 Tab<br>2. 填写 Client ID、Client Secret、授权端点、Token 端点、UserInfo 端点<br>3. 开启 CAS 登录<br>4. 保存 |
+| **预期结果** | 配置保存成功，登录页出现 CAS 登录入口 |
 | **实际结果** | |
 | **状态** | ⬜ 未测试 |
 
 ---
 
-### TC-F-014 OIDC 完整登录流程
+### TC-F-014 CAS 完整登录流程
 
 | 项目 | 内容 |
 |---|---|
 | **用例编号** | TC-F-014 |
-| **测试场景** | OIDC authorization_code 流程完整验证 |
-| **前置条件** | OIDC Provider 配置正确 |
-| **测试步骤** | 1. 点击 OIDC 登录入口<br>2. 在 Provider 页面完成认证<br>3. 回调至 `/oauth/callback` |
+| **测试场景** | CAS authorization_code 流程完整验证 |
+| **前置条件** | Keycloak/CAS 配置正确 |
+| **测试步骤** | 1. 点击 CAS 登录入口<br>2. 在 Provider 页面完成认证<br>3. 回调至 `/oauth/callback` |
 | **预期结果** | 登录成功，前端读取 token 并跳转 Dashboard |
 | **实际结果** | |
 | **状态** | ⬜ 未测试 |
