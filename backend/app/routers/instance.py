@@ -1,4 +1,5 @@
 """实例管理路由。"""
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,7 @@ router = APIRouter()
 
 # ─── 实例 CRUD ────────────────────────────────────────────────
 
+
 @router.get("/", summary="实例列表")
 async def list_instances(
     page: int = Query(1, ge=1),
@@ -28,12 +30,17 @@ async def list_instances(
     _user=Depends(current_user),
 ):
     total, items = await InstanceService.list_instances(
-        db, page=page, page_size=page_size,
-        db_type=db_type, search=search,
+        db,
+        page=page,
+        page_size=page_size,
+        db_type=db_type,
+        search=search,
         resource_group_id=resource_group_id,
     )
     return {
-        "total": total, "page": page, "page_size": page_size,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
         "items": [InstanceService.to_response(i) for i in items],
     }
 
@@ -58,7 +65,9 @@ async def get_instance(
     return InstanceService.to_response(inst)
 
 
-@router.put("/{instance_id}/", summary="修改实例", dependencies=[Depends(require_perm("instance_manage"))])
+@router.put(
+    "/{instance_id}/", summary="修改实例", dependencies=[Depends(require_perm("instance_manage"))]
+)
 async def update_instance(
     instance_id: int,
     data: InstanceUpdate,
@@ -69,7 +78,11 @@ async def update_instance(
     return {"status": 0, "msg": "实例已更新", "data": InstanceService.to_response(inst)}
 
 
-@router.delete("/{instance_id}/", summary="删除（停用）实例", dependencies=[Depends(require_perm("instance_manage"))])
+@router.delete(
+    "/{instance_id}/",
+    summary="删除（停用）实例",
+    dependencies=[Depends(require_perm("instance_manage"))],
+)
 async def delete_instance(
     instance_id: int,
     db: AsyncSession = Depends(get_db),
@@ -92,10 +105,17 @@ async def test_connection(
 @router.get("/{instance_id}/databases/", summary="获取数据库列表")
 async def get_databases(
     instance_id: int,
+    user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
 ):
-    databases = await InstanceService.get_databases(db, instance_id)
+    is_superuser = user.get("is_superuser", False)
+    if is_superuser:
+        databases = await InstanceService.get_databases(db, instance_id)
+    else:
+        registered = await InstanceDatabaseService.list_databases(
+            db, instance_id, include_inactive=False
+        )
+        databases = [r["db_name"] for r in registered]
     return {"databases": databases}
 
 
@@ -136,6 +156,7 @@ async def get_params(
 
 # ── 实例数据库管理（Pack C2）────────────────────────────────
 
+
 @router.get("/{instance_id}/db-list/", summary="已注册数据库列表")
 async def list_registered_databases(
     instance_id: int,
@@ -143,12 +164,16 @@ async def list_registered_databases(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    items = await InstanceDatabaseService.list_databases(db, instance_id, include_inactive)
+    show_inactive = user.get("is_superuser", False) or include_inactive
+    items = await InstanceDatabaseService.list_databases(db, instance_id, show_inactive)
     return {"items": items, "total": len(items)}
 
 
-@router.post("/{instance_id}/db-list/", summary="手动添加数据库",
-             dependencies=[Depends(require_perm("instance_manage"))])
+@router.post(
+    "/{instance_id}/db-list/",
+    summary="手动添加数据库",
+    dependencies=[Depends(require_perm("instance_manage"))],
+)
 async def add_database(
     instance_id: int,
     data: dict,
@@ -159,13 +184,17 @@ async def add_database(
     remark = data.get("remark", "")
     if not db_name:
         from fastapi import HTTPException
+
         raise HTTPException(400, "db_name 不能为空")
     idb = await InstanceDatabaseService.add_database(db, instance_id, db_name, remark)
     return {"status": 0, "msg": f"数据库 '{db_name}' 添加成功", "data": {"id": idb.id}}
 
 
-@router.put("/{instance_id}/db-list/{idb_id}/", summary="更新数据库备注/状态",
-            dependencies=[Depends(require_perm("instance_manage"))])
+@router.put(
+    "/{instance_id}/db-list/{idb_id}/",
+    summary="更新数据库备注/状态",
+    dependencies=[Depends(require_perm("instance_manage"))],
+)
 async def update_database(
     instance_id: int,
     idb_id: int,
@@ -174,15 +203,19 @@ async def update_database(
     db: AsyncSession = Depends(get_db),
 ):
     idb = await InstanceDatabaseService.update_database(
-        db, idb_id,
+        db,
+        idb_id,
         remark=data.get("remark"),
         is_active=data.get("is_active"),
     )
     return {"status": 0, "msg": "已更新", "data": {"id": idb.id}}
 
 
-@router.delete("/{instance_id}/db-list/{idb_id}/", summary="删除数据库注册",
-               dependencies=[Depends(require_perm("instance_manage"))])
+@router.delete(
+    "/{instance_id}/db-list/{idb_id}/",
+    summary="删除数据库注册",
+    dependencies=[Depends(require_perm("instance_manage"))],
+)
 async def delete_database(
     instance_id: int,
     idb_id: int,
@@ -209,20 +242,41 @@ async def list_tunnels(
     _user=Depends(current_user),
 ):
     tunnels = await TunnelService.list_tunnels(db)
-    return {"tunnels": [{"id": t.id, "tunnel_name": t.tunnel_name, "host": t.host, "port": t.port, "user": t.user} for t in tunnels]}
+    return {
+        "tunnels": [
+            {
+                "id": t.id,
+                "tunnel_name": t.tunnel_name,
+                "host": t.host,
+                "port": t.port,
+                "user": t.user,
+            }
+            for t in tunnels
+        ]
+    }
 
 
-@router.post("/tunnels/", summary="新建 SSH 隧道", dependencies=[Depends(require_perm("instance_manage"))])
+@router.post(
+    "/tunnels/", summary="新建 SSH 隧道", dependencies=[Depends(require_perm("instance_manage"))]
+)
 async def create_tunnel(
     data: TunnelCreate,
     db: AsyncSession = Depends(get_db),
     _user=Depends(current_user),
 ):
     tunnel = await TunnelService.create(db, data)
-    return {"status": 0, "msg": "SSH 隧道已创建", "data": {"id": tunnel.id, "tunnel_name": tunnel.tunnel_name}}
+    return {
+        "status": 0,
+        "msg": "SSH 隧道已创建",
+        "data": {"id": tunnel.id, "tunnel_name": tunnel.tunnel_name},
+    }
 
 
-@router.delete("/tunnels/{tunnel_id}/", summary="删除 SSH 隧道", dependencies=[Depends(require_perm("instance_manage"))])
+@router.delete(
+    "/tunnels/{tunnel_id}/",
+    summary="删除 SSH 隧道",
+    dependencies=[Depends(require_perm("instance_manage"))],
+)
 async def delete_tunnel(
     tunnel_id: int,
     db: AsyncSession = Depends(get_db),

@@ -150,9 +150,10 @@ export default function ArchivePage() {
                 <Col span={14}>
                   <Form.Item name="source_instance_id" label="源实例" rules={[{ required: true }]}>
                     <Select placeholder="选择实例" showSearch optionFilterProp="label"
+                      popupMatchSelectWidth={false}
                       onChange={(v) => { setSrcInstanceId(v); form.setFieldValue('source_db', undefined) }}>
                       {instances?.items?.map((i: any) => (
-                        <Option key={i.id} value={i.id} label={i.instance_name}>
+                        <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>
                           <Tag color="blue" style={{ fontSize: 11 }}>{i.db_type.toUpperCase()}</Tag>
                           {i.instance_name}
                         </Option>
@@ -162,9 +163,12 @@ export default function ArchivePage() {
                 </Col>
                 <Col span={10}>
                   <Form.Item name="source_db" label="数据库" rules={[{ required: true }]}>
-                    <Select placeholder="选择数据库" disabled={!srcInstanceId} showSearch>
+                    <Select placeholder="选择数据库" disabled={!srcInstanceId} showSearch
+                      popupMatchSelectWidth={false} optionFilterProp="children">
                       {srcDbs?.items?.map((d: any) => (
-                        <Option key={d.db_name} value={d.db_name}>{d.db_name}</Option>
+                        <Option key={d.db_name} value={d.db_name} title={d.db_name}>
+                          {d.db_name}{!d.is_active && <Tag color="default" style={{marginLeft: 4, fontSize: 10}}>已禁用</Tag>}
+                        </Option>
                       ))}
                     </Select>
                   </Form.Item>
@@ -207,9 +211,9 @@ export default function ArchivePage() {
                   <Row gutter={12} style={{ marginTop: 12 }}>
                     <Col span={14}>
                       <Form.Item name="dest_instance_id" label="目标实例" rules={[{ required: mode === 'dest' }]}>
-                        <Select placeholder="选择目标实例" showSearch optionFilterProp="label">
+                        <Select placeholder="选择目标实例" showSearch optionFilterProp="label" popupMatchSelectWidth={false}>
                           {instances?.items?.map((i: any) => (
-                            <Option key={i.id} value={i.id} label={i.instance_name}>{i.instance_name}</Option>
+                            <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>{i.instance_name}</Option>
                           ))}
                         </Select>
                       </Form.Item>

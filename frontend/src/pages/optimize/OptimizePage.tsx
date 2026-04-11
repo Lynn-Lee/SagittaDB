@@ -21,7 +21,7 @@ export default function OptimizePage() {
   const [msgApi, msgCtx] = message.useMessage()
 
   const { data: instanceData } = useQuery({ queryKey: ['instances-optimize'], queryFn: () => instanceApi.list({ page_size: 200 }) })
-  const { data: dbData } = useQuery({ queryKey: ['dbs-optimize', instanceId], queryFn: () => instanceApi.getDatabases(instanceId!), enabled: !!instanceId })
+  const { data: dbData } = useQuery({ queryKey: ['registered-dbs-optimize', instanceId], queryFn: () => instanceApi.listRegisteredDbs(instanceId!), enabled: !!instanceId })
 
   const handleAdvice = async () => {
     if (!instanceId) { msgApi.warning('请选择实例'); return }
@@ -55,11 +55,15 @@ export default function OptimizePage() {
       <Title level={2} style={{ margin: '0 0 20px' }}>SQL 优化</Title>
       <Card style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)', marginBottom: 16 }} styles={{ body: { padding: '12px 16px' } }}>
         <Space wrap>
-          <Select placeholder="选择实例" style={{ width: 220 }} onChange={(v) => { setInstanceId(v); setDbName('') }} showSearch optionFilterProp="label">
-            {instanceData?.items?.map((i: any) => <Option key={i.id} value={i.id} label={i.instance_name}><Tag color="blue">{i.db_type.toUpperCase()}</Tag> {i.instance_name}</Option>)}
+          <Select placeholder="选择实例" style={{ minWidth: 220, maxWidth: 360 }} onChange={(v) => { setInstanceId(v); setDbName('') }} showSearch optionFilterProp="label" popupMatchSelectWidth={false}>
+            {instanceData?.items?.map((i: any) => <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}><Tag color="blue">{i.db_type.toUpperCase()}</Tag> {i.instance_name}</Option>)}
           </Select>
-          <Select placeholder="选择数据库" style={{ width: 160 }} value={dbName || undefined} onChange={setDbName} disabled={!instanceId} showSearch>
-            {dbData?.databases?.map((d: string) => <Option key={d} value={d}>{d}</Option>)}
+          <Select placeholder="选择数据库" style={{ minWidth: 160, maxWidth: 360 }} value={dbName || undefined} onChange={setDbName} disabled={!instanceId} showSearch popupMatchSelectWidth={false} optionFilterProp="children">
+            {(dbData?.items || []).map((d: any) => (
+              <Option key={d.db_name} value={d.db_name} title={d.db_name}>
+                {d.db_name}{!d.is_active && <Tag color="default" style={{marginLeft: 4, fontSize: 10}}>已禁用</Tag>}
+              </Option>
+            ))}
           </Select>
           <Button icon={<BulbOutlined />} onClick={handleAdvice} loading={loading} disabled={!instanceId}>优化建议</Button>
           <Button icon={<PlayCircleOutlined />} onClick={handleExplain} loading={loading} disabled={!instanceId || !dbName}>EXPLAIN 分析</Button>

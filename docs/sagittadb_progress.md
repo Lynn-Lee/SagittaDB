@@ -2,7 +2,7 @@
 
 > **项目路径：** `/Users/lynn/SynologyDrive/SynologyDrive/Code/SagittaDB`
 > **重构基准：** Archery v1.14.0
-> **文档版本：** v1.7 · 2026-04-11
+> **文档版本：** v1.8 · 2026-04-12
 > **状态说明：** ✅ 已完成并验证 · 🔧 已开发待测试 · 📋 待开发
 
 ---
@@ -76,6 +76,7 @@
 - Fernet 对称加密存储密码字段
 - SSH 隧道配置（跳板机连接）
 - 实例数据库注册（Pack C2）：手动添加 + 从引擎自动同步，各数据库类型字段名称适配（Oracle=Schema，Redis=数据库编号）
+- **数据库 is_active 权限管控**：`is_active=False` 的数据库对普通用户全局不可见（API 过滤 + 前端下拉框过滤），管理员可见并标灰显示"已禁用"标签；查询禁用库返回 403
 
 **资源组管理**
 - 资源组 CRUD
@@ -86,6 +87,7 @@
 
 - Monaco Editor 代码编辑器（SQL 语法高亮 + 自动补全）
 - 在线查询执行（SELECT 限制，禁止 DDL/DML）
+- 禁用库查询拦截：非超管查询 `is_active=False` 的数据库返回 403
 - 行数限制（默认 1000）
 - 查询权限申请/审批流程
 - 数据脱敏（sqlglot 解析所有方言，替代 goInception）：
@@ -386,6 +388,10 @@
 | packH_deploy | Helm Chart（12 模板文件）+ docker-compose.prod.yml + 备份脚本 + GHCR 发布 + Helm lint CI |
 | security_hardening | Token 黑名单 fail-close / SECRET_KEY 生产强制校验 / Text2SQL 分层 / AI 路由注册修复 / 依赖版本收紧 |
 | approval_flow | 多级审批流后端（model/service/migration/router）+ 前端管理页面完整实现 |
+| db_permission_control | 数据库 is_active 权限管控：普通用户 API 过滤 + 前端下拉框已禁用标签 + 查询 403 拦截 |
+| bugfix_dictcursor | MySQL DictCursor 导致数据库名显示为 dict 字符串（3 处后端代码修复 + SQL 脏数据清理） |
+| bugfix_pg_tables | PostgreSQL masking_rule/workflow_template 表缺失（迁移遗漏，直接 SQL 补建） |
+| bugfix_dropdown_truncate | 6 个前端页面数据库下拉框长名字截断（popupMatchSelectWidth=false + maxWidth） |
 
 ---
 
@@ -397,7 +403,8 @@
 | 字段加密 | Fernet 对称加密（cryptography 库） |
 | SQL 解析 | sqlglot 替代 goInception（支持 20+ 方言，零外部进程依赖） |
 | 工单状态 | 整数枚举 0-8（0=待审核，6=成功，7=异常，8=取消） |
-| 数据库注册 | instance_database 表解耦实例连接与数据库名，Oracle=Schema，Redis=数字索引 |
+| 数据库注册 | instance_database 表解耦实例连接与数据库名，Oracle=Schema，Redis=数字索引；is_active 字段控制启停和权限 |
+| 数据库权限管控 | is_active=False 的库：普通用户 API 不可见 + 前端下拉框不显示；管理员可见并标灰提示"已禁用"；查询接口 403 拦截 |
 | 归档实现 | 纯 Python 通过引擎层执行，不依赖 pt-archiver，各数据库分批语法独立适配 |
 | Binlog 回滚 | 重定位为"SQL 回滚辅助"，my2sql 做命令生成器而非直接执行 |
 | 品牌主色 | #165DFF（Space Tech Blue，ARCO Design 标准色） |
@@ -411,4 +418,4 @@
 
 ---
 
-*文档最后更新：2026-04-08 · SagittaDB v1.0-GA（Pack A~H + Security Hardening + 多级审批流，功能完整）*
+*文档最后更新：2026-04-12 · SagittaDB v1.0-GA（Pack A~H + Security Hardening + 多级审批流 + 数据库权限管控 + Bug 修复，功能完整）*

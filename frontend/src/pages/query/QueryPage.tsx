@@ -41,8 +41,8 @@ export default function QueryPage() {
   })
 
   const { data: dbData, isLoading: dbLoading } = useQuery({
-    queryKey: ['databases', instanceId],
-    queryFn: () => instanceApi.getDatabases(instanceId!),
+    queryKey: ['registered-dbs', instanceId],
+    queryFn: () => instanceApi.listRegisteredDbs(instanceId!),
     enabled: !!instanceId,
   })
 
@@ -88,10 +88,11 @@ export default function QueryPage() {
       <Card style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}
         styles={{ body: { padding: '12px 16px' } }}>
         <Space wrap>
-          <Select placeholder="选择实例" style={{ width: 220 }}
+          <Select placeholder="选择实例" style={{ minWidth: 220, maxWidth: 360 }}
+            popupMatchSelectWidth={false}
             onChange={(v) => { setInstanceId(v); setDbName('') }} showSearch optionFilterProp="label">
             {instanceData?.items?.map((inst: any) => (
-              <Option key={inst.id} value={inst.id} label={inst.instance_name}>
+              <Option key={inst.id} value={inst.id} label={inst.instance_name} style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
                 <Space>
                   <Tag color="blue" style={{ fontSize: 11 }}>{inst.db_type.toUpperCase()}</Tag>
                   {inst.instance_name}
@@ -99,9 +100,15 @@ export default function QueryPage() {
               </Option>
             ))}
           </Select>
-          <Select placeholder="选择数据库" style={{ width: 180 }} value={dbName || undefined}
-            onChange={setDbName} loading={dbLoading} disabled={!instanceId} showSearch>
-            {dbData?.databases?.map((db: string) => <Option key={db} value={db}>{db}</Option>)}
+          <Select placeholder="选择数据库" style={{ minWidth: 180, maxWidth: 400 }} value={dbName || undefined}
+            popupMatchSelectWidth={false}
+            onChange={setDbName} loading={dbLoading} disabled={!instanceId} showSearch
+            optionFilterProp="children">
+            {(dbData?.items || []).map((d: any) => (
+              <Option key={d.db_name} value={d.db_name} title={d.db_name}>
+                {d.db_name}{!d.is_active && <Tag color="default" style={{marginLeft: 4, fontSize: 10}}>已禁用</Tag>}
+              </Option>
+            ))}
           </Select>
           <Space>
             <Text type="secondary" style={{ fontSize: 13 }}>行数上限</Text>

@@ -113,9 +113,9 @@ export default function WorkflowSubmit() {
           <Space style={{ width: '100%', display: 'flex' }}>
             <Form.Item label="实例" style={{ flex: 1 }} required>
               <Select placeholder="选择实例" onChange={(v) => { setInstanceId(v); setDbName('') }}
-                showSearch optionFilterProp="label">
+                showSearch optionFilterProp="label" popupMatchSelectWidth={false}>
                 {instanceData?.items?.map((i: any) => (
-                  <Option key={i.id} value={i.id} label={i.instance_name}>
+                  <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>
                     <Tag color="blue">{i.db_type.toUpperCase()}</Tag> {i.instance_name}
                   </Option>
                 ))}
@@ -128,13 +128,15 @@ export default function WorkflowSubmit() {
                   onChange={setDbName}
                   disabled={!instanceId}
                   showSearch
+                  popupMatchSelectWidth={false}
+                  optionFilterProp="children"
                   notFoundContent={<Text type="secondary" style={{fontSize:12}}>暂无数据库，请在实例管理→数据库管理中添加</Text>}
                 >
-                {(dbData?.items || []).map((d: any) => (
-                  <Option key={d.db_name} value={d.db_name}>
-                    {d.db_name}{d.remark ? <Text type="secondary" style={{fontSize:11}}> ({d.remark})</Text> : ''}
-                  </Option>
-                ))}
+{(dbData?.items || []).map((d: any) => (
+                    <Option key={d.db_name} value={d.db_name} title={d.db_name}>
+                      {d.db_name}{!d.is_active && <Tag color="default" style={{marginLeft: 4, fontSize: 10}}>已禁用</Tag>}{d.remark ? <Text type="secondary" style={{fontSize:11}}> ({d.remark})</Text> : ''}
+                    </Option>
+                  ))}
               </Select>
             </Form.Item>
             <Form.Item name="group_id" label="资源组" style={{ flex: 1 }} rules={[{ required: true }]}>

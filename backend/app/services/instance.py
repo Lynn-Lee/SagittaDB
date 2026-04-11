@@ -2,6 +2,7 @@
 实例管理业务逻辑服务。
 密码字段使用 encrypt_field / decrypt_field 加密存储（修复 1.x 明文存储问题）。
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 class InstanceService:
-
     @staticmethod
     async def _load_instance(db: AsyncSession, instance_id: int) -> Instance:
         result = await db.execute(
@@ -65,17 +65,18 @@ class InstanceService:
             query = query.where(Instance.instance_name.ilike(f"%{search}%"))
         if resource_group_id:
             from app.models.user import instance_resource_group
+
             query = query.join(
                 instance_resource_group,
                 Instance.id == instance_resource_group.c.instance_id,
-            ).where(
-                instance_resource_group.c.resource_group_id == resource_group_id
-            )
+            ).where(instance_resource_group.c.resource_group_id == resource_group_id)
 
         total_q = await db.execute(select(func.count()).select_from(query.subquery()))
         total = total_q.scalar_one()
 
-        query = query.order_by(Instance.instance_name).offset((page - 1) * page_size).limit(page_size)
+        query = (
+            query.order_by(Instance.instance_name).offset((page - 1) * page_size).limit(page_size)
+        )
         result = await db.execute(query)
         return total, list(result.scalars().all())
 
@@ -130,9 +131,7 @@ class InstanceService:
         return inst
 
     @staticmethod
-    async def update(
-        db: AsyncSession, instance_id: int, data: InstanceUpdate
-    ) -> Instance:
+    async def update(db: AsyncSession, instance_id: int, data: InstanceUpdate) -> Instance:
         inst = await InstanceService._load_instance(db, instance_id)
 
         update_fields = data.model_dump(exclude_none=True, exclude={"resource_group_ids", "tags"})
@@ -188,18 +187,32 @@ class InstanceService:
         rs = await engine.get_all_databases()
         if not rs.is_success:
             raise Exception(f"获取数据库列表失败：{rs.error}")
-        return [row[0] if isinstance(row, (tuple, list)) else str(row) for row in rs.rows]
+        result = []
+        for row in rs.rows:
+            if isinstance(row, dict):
+                result.append(str(list(row.values())[0]))
+            elif isinstance(row, (tuple, list)):
+                result.append(str(row[0]))
+            else:
+                result.append(str(row))
+        return result
 
     @staticmethod
-    async def get_tables(
-        db: AsyncSession, instance_id: int, db_name: str
-    ) -> list[str]:
+    async def get_tables(db: AsyncSession, instance_id: int, db_name: str) -> list[str]:
         inst = await InstanceService._load_instance(db, instance_id)
         engine = get_engine(inst)
         rs = await engine.get_all_tables(db_name=db_name)
         if not rs.is_success:
             raise Exception(f"获取表列表失败：{rs.error}")
-        return [row[0] if isinstance(row, (tuple, list)) else str(row) for row in rs.rows]
+        result = []
+        for row in rs.rows:
+            if isinstance(row, dict):
+                result.append(str(list(row.values())[0]))
+            elif isinstance(row, (tuple, list)):
+                result.append(str(row[0]))
+            else:
+                result.append(str(row))
+        return result
 
     @staticmethod
     async def get_columns(
@@ -211,19 +224,23 @@ class InstanceService:
         if not rs.is_success:
             raise Exception(f"获取列信息失败：{rs.error}")
         cols = rs.column_list or []
-        return [dict(zip(cols, row, strict=False)) if isinstance(row, (tuple, list)) else row for row in rs.rows]
+        return [
+            dict(zip(cols, row, strict=False)) if isinstance(row, (tuple, list)) else row
+            for row in rs.rows
+        ]
 
     @staticmethod
-    async def get_variables(
-        db: AsyncSession, instance_id: int
-    ) -> list[dict]:
+    async def get_variables(db: AsyncSession, instance_id: int) -> list[dict]:
         inst = await InstanceService._load_instance(db, instance_id)
         engine = get_engine(inst)
         rs = await engine.get_variables()
         if not rs.is_success:
             raise Exception(f"获取参数列表失败：{rs.error}")
         cols = rs.column_list or []
-        return [dict(zip(cols, row, strict=False)) if isinstance(row, (tuple, list)) else row for row in rs.rows]
+        return [
+            dict(zip(cols, row, strict=False)) if isinstance(row, (tuple, list)) else row
+            for row in rs.rows
+        ]
 
     # ─── 实例信息序列化（不暴露密码）────────────────────────
     @staticmethod
@@ -253,8 +270,8 @@ class InstanceService:
 # TunnelService
 # ══════════════════════════════════════════════════════════════
 
-class TunnelService:
 
+class TunnelService:
     @staticmethod
     async def list_tunnels(db: AsyncSession) -> list[SshTunnel]:
         result = await db.execute(select(SshTunnel))
@@ -275,7 +292,9 @@ class TunnelService:
             user=data.user,
             password=encrypt_field(data.password) if data.password else None,
             private_key=encrypt_field(data.private_key) if data.private_key else None,
-            private_key_password=encrypt_field(data.private_key_password) if data.private_key_password else None,
+            private_key_password=encrypt_field(data.private_key_password)
+            if data.private_key_password
+            else None,
         )
         db.add(tunnel)
         await db.commit()
@@ -284,9 +303,7 @@ class TunnelService:
 
     @staticmethod
     async def delete(db: AsyncSession, tunnel_id: int) -> None:
-        result = await db.execute(
-            select(SshTunnel).where(SshTunnel.id == tunnel_id)
-        )
+        result = await db.execute(select(SshTunnel).where(SshTunnel.id == tunnel_id))
         tunnel = result.scalar_one_or_none()
         if not tunnel:
             raise NotFoundException(f"SSH 隧道 ID={tunnel_id} 不存在")

@@ -75,6 +75,8 @@ SagittaDB/
 | Pack H | Helm Chart、CI/CD、生产环境配置 | ✅ 100% |
 | Security Hardening | Token 黑名单 fail-close、SECRET_KEY 强制校验、AI 路由注册 | ✅ 100% |
 | 多级审批流 | 管理员自定义审批节点 + 前端管理页面 | ✅ 100% |
+| 数据库权限管控 | is_active 启停控制、普通用户不可见禁用库、管理员标灰"已禁用" | ✅ 100% |
+| Bug 修复 | MySQL DictCursor 修复、PG 表缺失修复、前端下拉框截断修复 | ✅ 100% |
 
 **总体完成度：100%（v1.0-GA）**
 

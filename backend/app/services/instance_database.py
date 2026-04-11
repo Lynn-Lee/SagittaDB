@@ -2,6 +2,7 @@
 实例数据库注册服务（Pack C2）。
 管理每个实例下已注册的数据库列表，支持手动维护和从引擎自动同步。
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,14 +19,13 @@ logger = logging.getLogger(__name__)
 
 # Oracle 用 Schema，Redis 用编号，其他用 Database
 DB_NAME_LABEL = {
-    "oracle":       "Schema",
-    "redis":        "数据库编号",
-    "elasticsearch":"索引前缀",
+    "oracle": "Schema",
+    "redis": "数据库编号",
+    "elasticsearch": "索引前缀",
 }
 
 
 class InstanceDatabaseService:
-
     @staticmethod
     def get_db_label(db_type: str) -> str:
         """根据数据库类型返回数据库名的 label。"""
@@ -38,9 +38,7 @@ class InstanceDatabaseService:
         include_inactive: bool = False,
     ) -> list[dict]:
         """获取实例下已注册的数据库列表。"""
-        stmt = select(InstanceDatabase).where(
-            InstanceDatabase.instance_id == instance_id
-        )
+        stmt = select(InstanceDatabase).where(InstanceDatabase.instance_id == instance_id)
         if not include_inactive:
             stmt = stmt.where(InstanceDatabase.is_active)
         stmt = stmt.order_by(InstanceDatabase.db_name)
@@ -159,32 +157,42 @@ class InstanceDatabaseService:
                     return {
                         "success": False,
                         "message": f"连接失败：{rs.error}",
-                        "added": 0, "skipped": 0,
+                        "added": 0,
+                        "skipped": 0,
                     }
                 db_list = [
-                    row[0] if isinstance(row, (tuple, list)) else str(row)
+                    str(list(row.values())[0])
+                    if isinstance(row, dict)
+                    else str(row[0])
+                    if isinstance(row, (tuple, list))
+                    else str(row)
                     for row in rs.rows
                 ]
         except Exception as e:
             return {
                 "success": False,
                 "message": f"查询失败：{str(e)}",
-                "added": 0, "skipped": 0,
+                "added": 0,
+                "skipped": 0,
             }
 
         # 查已有记录
         existing_result = await db.execute(
-            select(InstanceDatabase.db_name).where(
-                InstanceDatabase.instance_id == instance_id
-            )
+            select(InstanceDatabase.db_name).where(InstanceDatabase.instance_id == instance_id)
         )
         existing_names = {r[0] for r in existing_result}
 
         added = 0
         skipped = 0
         for db_name in db_list:
-            if not db_name or db_name in ("information_schema", "performance_schema",
-                                           "mysql", "sys", "pg_catalog", "pg_toast"):
+            if not db_name or db_name in (
+                "information_schema",
+                "performance_schema",
+                "mysql",
+                "sys",
+                "pg_catalog",
+                "pg_toast",
+            ):
                 skipped += 1
                 continue
             if db_name in existing_names:
@@ -199,19 +207,20 @@ class InstanceDatabaseService:
                 )
                 skipped += 1
             else:
-                db.add(InstanceDatabase(
-                    instance_id=instance_id,
-                    db_name=db_name,
-                    remark="",
-                    is_active=True,
-                    sync_at=now,
-                ))
+                db.add(
+                    InstanceDatabase(
+                        instance_id=instance_id,
+                        db_name=db_name,
+                        remark="",
+                        is_active=True,
+                        sync_at=now,
+                    )
+                )
                 added += 1
 
         await db.commit()
         logger.info(
-            "instance_db_synced: instance=%s added=%d skipped=%d",
-            instance_id, added, skipped
+            "instance_db_synced: instance=%s added=%d skipped=%d", instance_id, added, skipped
         )
         return {
             "success": True,

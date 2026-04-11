@@ -1,7 +1,7 @@
 # SagittaDB 矢准数据 — 产品需求文档（PRD）
 
-> **版本：** v2.4
-> **日期：** 2026-04-08
+> **版本：** v2.5
+> **日期：** 2026-04-12
 > **状态：** 内测中
 > **产品定位：** 企业级多引擎数据库管控平台，为 SaaS 3.0 预留接口
 
@@ -130,7 +130,8 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
   - Oracle → 显示为"Schema"
   - Redis → 显示为"数据库编号"（0-15）
   - 其他 → 显示为"数据库"
-- 启用/停用控制（停用后不可提交工单）
+- 启用/停用控制（停用后不可提交工单、不可在线查询）
+- 数据库级权限管控：`is_active=False` 的数据库对普通用户全局不可见（API 和前端下拉框均过滤），管理员可见并标灰显示"已禁用"标签
 
 ### 2.3 SQL 工单
 
@@ -200,6 +201,7 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 - Monaco Editor（SQL 语法高亮 + 智能补全）
 - 查询行数限制（默认 1000 行，可在系统配置调整）
 - 只允许 SELECT/SHOW/DESCRIBE/EXPLAIN（拒绝 DDL/DML）
+- 禁用数据库查询拦截：非超管查询 `is_active=False` 的数据库返回 403
 - 查询结果表格展示（支持列排序）
 - 查询日志记录（SQL 内容、执行时间、行数）
 
@@ -430,7 +432,7 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 |---|---|
 | `sql_users` | 用户账号（含权限码、2FA 密钥） |
 | `sql_instance` | 数据库实例（密码加密存储） |
-| `instance_database` | 实例下注册的数据库列表 |
+| `instance_database` | 实例下注册的数据库列表（含 is_active 启停控制） |
 | `sql_workflow` | SQL 工单主表（含 flow_id 外键关联审批流） |
 | `sql_workflow_content` | 工单 SQL 内容（大字段分离） |
 | `approval_flow` | 审批流模板（名称、描述、是否启用） |
@@ -462,6 +464,8 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 | Pack H | 生产就绪：Helm Chart（K8s）、GHCR 镜像发布、备份脚本、多环境配置 |
 | Security Hardening | Token 黑名单 fail-close、生产环境 SECRET_KEY 强制校验、Text2SQL 服务分层、依赖版本收紧 |
 | 多级审批流 | 管理员自定义多节点审批流（指定用户 / 资源组 / 任意审批员），工单快照机制，前端审批流管理页面 |
+| 数据库权限管控 | is_active 启停控制：普通用户不可见/不可查禁用库，管理员可见并标灰"已禁用" |
+| Bug 修复 | MySQL DictCursor 数据库名显示异常修复；PostgreSQL masking_rule/workflow_template 表缺失修复；前端下拉框长名字截断修复 |
 
 ### 5.2 v1.0-GA 剩余可选优化
 
@@ -491,7 +495,7 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 |---|---|
 | 登录认证 | 账号密码登录成功，2FA 验证通过，token 自动刷新；第三方登录回调完成后可正常进入 dashboard |
 | 实例管理 | 11 种数据库类型可添加，测试连接返回版本信息 |
-| 在线查询 | SELECT 执行成功，脱敏规则生效，DDL 被拒绝 |
+| 在线查询 | SELECT 执行成功，脱敏规则生效，DDL 被拒绝，禁用库返回 403 |
 | SQL 工单 | 完整流转（提交→审批→执行→成功），WebSocket 进度推送正常 |
 | AI Text2SQL | 自然语言生成 SQL，方言正确 |
 | 数据归档 | dry_run 估算行数，执行后数据库行数减少 |
@@ -511,5 +515,5 @@ PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 
 ---
 
-*SagittaDB 矢准数据 · PRD v2.3 · 2026-03-25（Pack H 生产就绪完成，v1.0-GA 候选版本）*
+*SagittaDB 矢准数据 · PRD v2.5 · 2026-04-12（数据库 is_active 权限管控 + Bug 修复）*
 *矢向数据，精准管控 · Full Engine Compatibility, End-to-End Observability*

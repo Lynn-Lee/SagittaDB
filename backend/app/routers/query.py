@@ -2,6 +2,7 @@
 在线查询路由（Sprint 2）。
 完整实现：执行查询、权限校验、数据脱敏、查询日志。
 """
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,7 +14,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.deps import current_user
 from app.engines.registry import get_engine
-from app.models.instance import Instance
+from app.models.instance import Instance, InstanceDatabase
 from app.schemas.query import QueryExecuteRequest
 from app.services.masking import DataMaskingService
 from app.services.masking_rule import MaskingRuleService
@@ -69,6 +70,18 @@ async def execute_query(
     if not passed:
         raise HTTPException(403, reason)
 
+    # ── 3.5 数据库禁用校验（非超管）─────────────────────────────────
+    if not user.get("is_superuser", False):
+        inst_db_result = await db.execute(
+            select(InstanceDatabase).where(
+                InstanceDatabase.instance_id == data.instance_id,
+                InstanceDatabase.db_name == data.db_name,
+                InstanceDatabase.is_active == True,
+            )
+        )
+        if not inst_db_result.scalar_one_or_none():
+            raise HTTPException(403, f"数据库 {data.db_name} 已禁用或未注册，不可查询")
+
     # ── 4. 注入 LIMIT ──────────────────────────────────────────
     safe_sql = engine.filter_sql(data.sql, data.limit_num)
 
@@ -84,7 +97,9 @@ async def execute_query(
 
     # ── 6. 数据脱敏（sqlglot，支持所有方言）────────────────────
     # 从数据库加载适用于此实例和数据库的脱敏规则
-    active_rules = await MaskingRuleService.get_rules_for_instance(db, data.instance_id, data.db_name)
+    active_rules = await MaskingRuleService.get_rules_for_instance(
+        db, data.instance_id, data.db_name
+    )
     masking_svc = DataMaskingService(rules=active_rules)
     masked_result = masking_svc.mask_result(resultset, data.sql, inst.db_type)
     is_masked = masked_result is not resultset
@@ -111,10 +126,12 @@ async def execute_query(
     rows_as_list = []
     for row in masked_result.rows:
         if isinstance(row, (tuple, list)):
-            rows_as_list.append([
-                str(v) if v is not None and not isinstance(v, (int, float, bool, str)) else v
-                for v in row
-            ])
+            rows_as_list.append(
+                [
+                    str(v) if v is not None and not isinstance(v, (int, float, bool, str)) else v
+                    for v in row
+                ]
+            )
         elif isinstance(row, dict):
             rows_as_list.append(list(row.values()))
         else:
@@ -171,10 +188,9 @@ async def toggle_favorite(
     db: AsyncSession = Depends(get_db),
 ):
     from app.models.query import QueryLog
+
     result = await db.execute(
-        select(QueryLog).where(
-            QueryLog.id == log_id, QueryLog.user_id == user["id"]
-        )
+        select(QueryLog).where(QueryLog.id == log_id, QueryLog.user_id == user["id"])
     )
     log = result.scalar_one_or_none()
     if not log:

@@ -83,21 +83,25 @@ export default function DataDictPage() {
       <Card style={{ marginBottom: 16, borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}
         styles={{ body: { padding: '12px 16px' } }}>
         <Space wrap>
-          <Select placeholder="选择实例" style={{ width: 220 }} value={instanceId}
+          <Select placeholder="选择实例" style={{ minWidth: 220, maxWidth: 360 }} value={instanceId}
+            popupMatchSelectWidth={false}
             onChange={(v) => { setInstanceId(v); setDbName(''); setSelectedTable('') }}
             showSearch optionFilterProp="label">
             {instances?.items?.map((i: any) => (
-              <Option key={i.id} value={i.id} label={i.instance_name}>
+              <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>
                 <Tag color="blue" style={{ fontSize: 11 }}>{i.db_type.toUpperCase()}</Tag>
                 {i.instance_name}
               </Option>
             ))}
           </Select>
-          <Select placeholder="选择数据库" style={{ width: 160 }}
+          <Select placeholder="选择数据库" style={{ minWidth: 160, maxWidth: 360 }}
+            popupMatchSelectWidth={false}
             value={dbName || undefined} onChange={(v) => { setDbName(v); setSelectedTable('') }}
-            disabled={!instanceId} showSearch>
+            disabled={!instanceId} showSearch optionFilterProp="children">
             {(dbData?.items || []).map((d: any) => (
-              <Option key={d.db_name} value={d.db_name}>{d.db_name}</Option>
+              <Option key={d.db_name} value={d.db_name} title={d.db_name}>
+                {d.db_name}{!d.is_active && <Tag color="default" style={{marginLeft: 4, fontSize: 10}}>已禁用</Tag>}
+              </Option>
             ))}
           </Select>
           {tableLoading && <Spin size="small" />}
