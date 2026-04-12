@@ -143,6 +143,10 @@ export default function ResourceGroupManagement() {
       ),
     },
     {
+      title: '用户组', dataIndex: 'user_group_count', width: 80,
+      render: (v: number) => v ? <Tag color="blue">{v} 个</Tag> : <Text type="secondary">0</Text>,
+    },
+    {
       title: '钉钉 Webhook', dataIndex: 'ding_webhook', width: 180, ellipsis: true,
       render: (v: string) => v
         ? <Text type="secondary" style={{ fontSize: 11 }} title={v}>{v.slice(0, 30)}...</Text>

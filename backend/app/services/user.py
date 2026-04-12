@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.security import hash_password, verify_password
+from app.models.role import role_permission
 from app.models.user import Permission, ResourceGroup, Users, user_permission, user_resource_group
 from app.schemas.user import (
     ResourceGroupCreate,
@@ -67,7 +68,11 @@ class UserService:
         search: str | None = None,
         is_active: bool | None = None,
     ) -> tuple[int, list[Users]]:
-        query = select(Users).options(selectinload(Users.resource_groups))
+        query = select(Users).options(
+            selectinload(Users.resource_groups),
+            selectinload(Users.user_groups),
+            selectinload(Users.role),
+        )
         if search:
             query = query.where(
                 Users.username.ilike(f"%{search}%")
@@ -178,6 +183,25 @@ class UserService:
             .where(user_permission.c.user_id == user_id)
         )
         return list(result.scalars().all())
+
+    @staticmethod
+    async def get_merged_permissions(
+        db: AsyncSession, user_id: int, db_user: Users | None = None
+    ) -> list[str]:
+        """v2: 合并角色权限 + 用户直接权限。"""
+
+        direct = set(await UserService.get_permissions(db, user_id))
+        role_perms: set[str] = set()
+        if db_user is None:
+            db_user = await UserService.get_by_id(db, user_id)
+        if db_user and db_user.role_id:
+            result = await db.execute(
+                select(Permission.codename)
+                .join(role_permission, Permission.id == role_permission.c.permission_id)
+                .where(role_permission.c.role_id == db_user.role_id)
+            )
+            role_perms = set(result.scalars().all())
+        return sorted(role_perms | direct)
 
     @staticmethod
     async def grant_permissions(db: AsyncSession, user_id: int, perm_codes: list[str]) -> None:
@@ -323,6 +347,7 @@ class ResourceGroupService:
 
     @staticmethod
     async def get_member_count(db: AsyncSession, rg_id: int) -> int:
+        """v2: 返回直接成员数（不含用户组成员）。前端成员管理穿梭框仅显示直接成员。"""
         result = await db.execute(
             select(func.count())
             .select_from(user_resource_group)

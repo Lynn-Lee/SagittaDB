@@ -43,9 +43,6 @@ export default function UserManagement() {
     value: g.id, label: g.name_cn || g.name,
   }))
 
-  const roleNameMap: Record<number, string> = {}
-  ;(rolesData?.items ?? []).forEach((r: any) => { roleNameMap[r.id] = r.name_cn || r.name })
-
   const createMut = useMutation({
     mutationFn: userApi.create,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setModalOpen(false); msgApi.success('用户创建成功') },
@@ -86,10 +83,9 @@ export default function UserManagement() {
   const columns: ColumnsType<any> = [
     { title: '用户名', dataIndex: 'username', render: (n, r) => <Space direction="vertical" size={0}><Text strong>{n}</Text><Text type="secondary" style={{ fontSize: 12 }}>{r.display_name}</Text></Space> },
     { title: '邮箱', dataIndex: 'email', render: v => v || <Text type="secondary">—</Text> },
-    { title: '角色', width: 120, render: (_, r) => {
+    { title: '角色', dataIndex: 'role_name', width: 120, render: (name, r) => {
       if (r.is_superuser) return <Tag color="red">超级管理员</Tag>
-      if (r.role_id && roleNameMap[r.role_id]) return <Tag color="blue">{roleNameMap[r.role_id]}</Tag>
-      return <Tag>普通用户</Tag>
+      return name ? <Tag color="blue">{name}</Tag> : <Tag>普通用户</Tag>
     }},
     { title: '认证', dataIndex: 'auth_type', width: 90, render: t => <Tag>{t}</Tag> },
     { title: '部门', dataIndex: 'department', width: 100, render: v => v || <Text type="secondary">—</Text> },

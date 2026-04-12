@@ -45,7 +45,7 @@ async def list_users(
     _user=Depends(require_perm("user_manage")),
 ):
     total, items = await UserService.list_users(db, page, page_size, search, is_active)
-    perms_map = {u.id: await UserService.get_permissions(db, u.id) for u in items}
+    perms_map = {u.id: await UserService.get_merged_permissions(db, u.id, u) for u in items}
     return {
         "total": total,
         "page": page,
@@ -61,6 +61,15 @@ async def list_users(
                 "auth_type": u.auth_type,
                 "totp_enabled": u.totp_enabled,
                 "resource_groups": [rg.id for rg in u.resource_groups],
+                "user_groups": [ug.id for ug in u.user_groups],
+                "role_id": u.role_id,
+                "role_name": u.role.name_cn
+                if u.role and u.role.name_cn
+                else (u.role.name if u.role else None),
+                "manager_id": u.manager_id,
+                "employee_id": u.employee_id,
+                "department": u.department,
+                "title": u.title,
                 "permissions": perms_map.get(u.id, []),
                 "tenant_id": u.tenant_id,
             }
@@ -90,7 +99,7 @@ async def get_user(
     user = await UserService.get_by_id(db, user_id)
     if not user:
         raise HTTPException(404, "用户不存在")
-    permissions = await UserService.get_permissions(db, user.id)
+    permissions = await UserService.get_merged_permissions(db, user.id, user)
     return {
         "id": user.id,
         "username": user.username,
@@ -417,6 +426,7 @@ async def list_resource_groups(
     result = []
     for rg in items:
         mc = await ResourceGroupService.get_member_count(db, rg.id)
+        ugs = await UserGroupService.get_user_groups_for_resource_group(db, rg.id)
         result.append(
             {
                 "id": rg.id,
@@ -427,6 +437,7 @@ async def list_resource_groups(
                 "is_active": rg.is_active,
                 "tenant_id": rg.tenant_id,
                 "member_count": mc,
+                "user_group_count": len(ugs),
             }
         )
     return {"total": total, "page": page, "page_size": page_size, "items": result}

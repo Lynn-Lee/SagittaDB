@@ -189,7 +189,7 @@ async def get_me(user=Depends(current_user), db: AsyncSession = Depends(get_db))
     db_user = await UserService.get_by_id(db, user["id"])
     if not db_user:
         raise HTTPException(404, "用户不存在")
-    permissions = await UserService.get_permissions(db, db_user.id)
+    # v2: permissions from current_user already merges role + direct perms
     return {
         "id": db_user.id,
         "username": db_user.username,
@@ -199,7 +199,7 @@ async def get_me(user=Depends(current_user), db: AsyncSession = Depends(get_db))
         "is_active": db_user.is_active,
         "auth_type": db_user.auth_type,
         "totp_enabled": db_user.totp_enabled,
-        "permissions": permissions,
+        "permissions": user.get("permissions", []),
         "role": db_user.role.name if db_user.role else None,
         "role_id": db_user.role_id,
         "manager_id": db_user.manager_id,
