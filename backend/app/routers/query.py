@@ -76,7 +76,7 @@ async def execute_query(
             select(InstanceDatabase).where(
                 InstanceDatabase.instance_id == data.instance_id,
                 InstanceDatabase.db_name == data.db_name,
-                InstanceDatabase.is_active == True,
+                InstanceDatabase.is_active.is_(True),
             )
         )
         if not inst_db_result.scalar_one_or_none():
