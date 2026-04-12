@@ -1,6 +1,6 @@
 """实例管理路由。"""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -16,6 +16,17 @@ from app.services.instance_database import InstanceDatabaseService
 router = APIRouter()
 
 
+def _validate_resource_group_scope(user: dict, resource_group_ids: list[int] | None) -> None:
+    if not resource_group_ids:
+        return
+    if user.get("is_superuser") or "query_all_instances" in user.get("permissions", []):
+        return
+    allowed_rg_ids = set(user.get("resource_groups", []))
+    requested_rg_ids = set(resource_group_ids)
+    if not requested_rg_ids.issubset(allowed_rg_ids):
+        raise HTTPException(403, "不能操作资源组外的实例")
+
+
 # ─── 实例 CRUD ────────────────────────────────────────────────
 
 
@@ -27,7 +38,7 @@ async def list_instances(
     search: str | None = None,
     resource_group_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
     total, items = await InstanceService.list_instances(
         db,
@@ -36,6 +47,7 @@ async def list_instances(
         db_type=db_type,
         search=search,
         resource_group_id=resource_group_id,
+        user=user,
     )
     return {
         "total": total,
@@ -45,12 +57,27 @@ async def list_instances(
     }
 
 
+async def _ensure_instance_access(db: AsyncSession, user: dict, instance_id: int):
+    from fastapi import HTTPException
+
+    inst = await InstanceService.get_by_id(db, instance_id)
+    if user.get("is_superuser") or "query_all_instances" in user.get("permissions", []):
+        return inst
+
+    user_rg_ids = set(user.get("resource_groups", []))
+    instance_rg_ids = {rg.id for rg in inst.resource_groups}
+    if user_rg_ids & instance_rg_ids:
+        return inst
+    raise HTTPException(403, "实例不在你的资源组内")
+
+
 @router.post("/", summary="新建实例", dependencies=[Depends(require_perm("instance_manage"))])
 async def create_instance(
     data: InstanceCreate,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
+    _validate_resource_group_scope(user, data.resource_group_ids)
     inst = await InstanceService.create(db, data)
     return {"status": 0, "msg": "实例创建成功", "data": InstanceService.to_response(inst)}
 
@@ -59,9 +86,9 @@ async def create_instance(
 async def get_instance(
     instance_id: int,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
-    inst = await InstanceService.get_by_id(db, instance_id)
+    inst = await _ensure_instance_access(db, user, instance_id)
     return InstanceService.to_response(inst)
 
 
@@ -72,8 +99,10 @@ async def update_instance(
     instance_id: int,
     data: InstanceUpdate,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
+    await _ensure_instance_access(db, user, instance_id)
+    _validate_resource_group_scope(user, data.resource_group_ids)
     inst = await InstanceService.update(db, instance_id, data)
     return {"status": 0, "msg": "实例已更新", "data": InstanceService.to_response(inst)}
 
@@ -86,8 +115,9 @@ async def update_instance(
 async def delete_instance(
     instance_id: int,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     await InstanceService.delete(db, instance_id)
     return {"status": 0, "msg": "实例已停用"}
 
@@ -96,8 +126,9 @@ async def delete_instance(
 async def test_connection(
     instance_id: int,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     result = await InstanceService.test_connection(db, instance_id)
     return result
 
@@ -108,6 +139,7 @@ async def get_databases(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     is_superuser = user.get("is_superuser", False)
     if is_superuser:
         databases = await InstanceService.get_databases(db, instance_id)
@@ -124,8 +156,9 @@ async def get_tables(
     instance_id: int,
     db_name: str = Query(..., description="数据库名"),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     tables = await InstanceService.get_tables(db, instance_id, db_name)
     return {"tables": tables}
 
@@ -136,8 +169,9 @@ async def get_columns(
     db_name: str = Query(...),
     tb_name: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     columns = await InstanceService.get_columns(db, instance_id, db_name, tb_name)
     return {"columns": columns}
 
@@ -146,8 +180,9 @@ async def get_columns(
 async def get_params(
     instance_id: int,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(current_user),
+    user: dict = Depends(current_user),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     params = await InstanceService.get_variables(db, instance_id)
     return {"params": params}
 
@@ -164,6 +199,7 @@ async def list_registered_databases(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     show_inactive = user.get("is_superuser", False) or include_inactive
     items = await InstanceDatabaseService.list_databases(db, instance_id, show_inactive)
     return {"items": items, "total": len(items)}
@@ -180,11 +216,10 @@ async def add_database(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     db_name = data.get("db_name", "").strip()
     remark = data.get("remark", "")
     if not db_name:
-        from fastapi import HTTPException
-
         raise HTTPException(400, "db_name 不能为空")
     idb = await InstanceDatabaseService.add_database(db, instance_id, db_name, remark)
     return {"status": 0, "msg": f"数据库 '{db_name}' 添加成功", "data": {"id": idb.id}}
@@ -202,6 +237,7 @@ async def update_database(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     idb = await InstanceDatabaseService.update_database(
         db,
         idb_id,
@@ -222,6 +258,7 @@ async def delete_database(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     await InstanceDatabaseService.delete_database(db, idb_id)
     return {"status": 0, "msg": "已删除"}
 
@@ -232,6 +269,7 @@ async def sync_databases(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _ensure_instance_access(db, user, instance_id)
     result = await InstanceDatabaseService.sync_from_engine(db, instance_id)
     return result
 

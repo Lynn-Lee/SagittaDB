@@ -9,19 +9,19 @@ import {
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { approvalFlowApi, type ApprovalFlowNode } from '@/api/approvalFlow'
-import { userApi, resourceGroupApi } from '@/api/system'
+import { userApi } from '@/api/system'
 
 const { Title, Text } = Typography
 
 const APPROVER_TYPE_LABELS: Record<string, string> = {
   users:        '指定用户',
-  group:        '资源组成员',
+  manager:      '直属上级',
   any_reviewer: '任意审批员',
 }
 
 const APPROVER_TYPE_COLORS: Record<string, string> = {
   users:        'blue',
-  group:        'green',
+  manager:      'cyan',
   any_reviewer: 'orange',
 }
 
@@ -42,12 +42,6 @@ export default function ApprovalFlowPage() {
   const { data: allUsers } = useQuery({
     queryKey: ['all-users-for-flow'],
     queryFn: () => userApi.list({ page_size: 500, is_active: true }),
-    enabled: drawerOpen,
-  })
-
-  const { data: allGroups } = useQuery({
-    queryKey: ['all-groups-for-flow'],
-    queryFn: () => resourceGroupApi.list({ page_size: 200 }),
     enabled: drawerOpen,
   })
 
@@ -172,8 +166,6 @@ export default function ApprovalFlowPage() {
   ]
 
   const userOptions  = (allUsers?.items  || []).map((u: any) => ({ label: `${u.username}${u.display_name ? ` (${u.display_name})` : ''}`, value: u.id }))
-  const groupOptions = (allGroups?.items || []).map((g: any) => ({ label: g.name, value: g.id }))
-
   const isSaving = createMut.isPending || updateMut.isPending
 
   return (
@@ -307,11 +299,18 @@ export default function ApprovalFlowPage() {
                             </Text>
                           )
                         }
+                        if (type === 'manager') {
+                          return (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              自动使用申请人的直属上级作为审批人
+                            </Text>
+                          )
+                        }
                         return (
                           <Form.Item
                             {...field}
                             name={[field.name, 'approver_ids']}
-                            label={type === 'users' ? '指定审批用户' : '指定资源组'}
+                            label="指定审批用户"
                             rules={[{ required: true, type: 'array', min: 1, message: '请至少选择一项' }]}
                           >
                             <Select
@@ -319,8 +318,8 @@ export default function ApprovalFlowPage() {
                               allowClear
                               showSearch
                               optionFilterProp="label"
-                              placeholder={type === 'users' ? '选择用户' : '选择资源组'}
-                              options={type === 'users' ? userOptions : groupOptions}
+                              placeholder="选择用户"
+                              options={userOptions}
                             />
                           </Form.Item>
                         )

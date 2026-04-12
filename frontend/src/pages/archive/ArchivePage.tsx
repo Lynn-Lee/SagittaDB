@@ -19,6 +19,17 @@ const DB_SUPPORT_COLORS: Record<string, string> = {
   true: 'success', false: 'default',
 }
 
+interface ArchiveSupportResponse {
+  support: Record<string, { purge: boolean; dest: boolean; reason: string }>
+}
+
+interface ArchiveActionResponse {
+  supported?: boolean
+  success?: boolean
+  msg: string
+  count?: number
+}
+
 export default function ArchivePage() {
   const [form] = Form.useForm()
   const [step, setStep] = useState(0)
@@ -32,7 +43,7 @@ export default function ArchivePage() {
   // 支持矩阵
   const { data: supportData } = useQuery({
     queryKey: ['archive-support'],
-    queryFn: () => apiClient.get('/archive/support/').then(r => r.data),
+    queryFn: () => apiClient.get<ArchiveSupportResponse>('/archive/support/').then(r => r.data),
   })
 
   // 实例列表
@@ -50,8 +61,8 @@ export default function ArchivePage() {
 
   // 估算
   const estimateMut = useMutation({
-    mutationFn: (data: any) => apiClient.post('/archive/estimate/', data).then(r => r.data),
-    onSuccess: (res) => {
+    mutationFn: (data: any) => apiClient.post<ArchiveActionResponse>('/archive/estimate/', data).then(r => r.data),
+    onSuccess: (res: ArchiveActionResponse) => {
       setEstimateResult(res)
       if (res.supported === false) {
         msgApi.warning(res.msg)
@@ -65,8 +76,8 @@ export default function ArchivePage() {
 
   // 执行归档
   const runMut = useMutation({
-    mutationFn: (data: any) => apiClient.post('/archive/run/', data).then(r => r.data),
-    onSuccess: (res) => {
+    mutationFn: (data: any) => apiClient.post<ArchiveActionResponse>('/archive/run/', data).then(r => r.data),
+    onSuccess: (res: ArchiveActionResponse) => {
       setRunResult(res)
       setConfirmOpen(false)
       setStep(2)

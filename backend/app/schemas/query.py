@@ -2,9 +2,9 @@
 在线查询 Pydantic Schema（Sprint 2）。
 """
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class QueryExecuteRequest(BaseModel):
@@ -54,9 +54,10 @@ class QueryLogListResponse(BaseModel):
 class PrivApplyRequest(BaseModel):
     title: str = Field(..., min_length=2, max_length=50)
     instance_id: int
-    group_id: int
+    group_id: int | None = None
     db_name: str
     table_name: str = ""
+    scope_type: Literal["database", "table"] = "database"
     valid_date: date
     limit_num: int = Field(default=100, ge=1, le=100000)
     priv_type: int = Field(default=1, description="1=库级 2=表级")
@@ -71,6 +72,13 @@ class PrivApplyRequest(BaseModel):
             raise ValueError("有效期不能早于今天")
         return v
 
+    @model_validator(mode="after")
+    def validate_scope_fields(self) -> "PrivApplyRequest":
+        self.table_name = self.table_name.strip()
+        if self.scope_type == "table" and not self.table_name:
+            raise ValueError("表级授权必须填写表名")
+        return self
+
 
 class PrivApplyItem(BaseModel):
     id: int
@@ -78,6 +86,7 @@ class PrivApplyItem(BaseModel):
     instance_id: int
     db_name: str
     table_name: str
+    scope_type: str
     valid_date: str
     limit_num: int
     priv_type: int
@@ -110,6 +119,7 @@ class PrivilegeItem(BaseModel):
     instance_id: int
     db_name: str
     table_name: str
+    scope_type: str
     valid_date: str
     limit_num: int
     priv_type: int

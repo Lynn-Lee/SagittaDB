@@ -1,7 +1,7 @@
 # SagittaDB 矢准数据
 
 > **矢向数据，精准管控**
-> 企业级多引擎数据库管控平台 · 基于 Archery v1.14.0 深度重构 · v1.0-GA
+> 企业级多引擎数据库管控平台 · 基于 Archery v1.14.0 深度重构 · v1.0-GA + v2-lite 权限收敛
 
 ---
 
@@ -11,8 +11,9 @@ SagittaDB 通过统一的 Web 界面，帮助 DBA 和研发团队安全、高效
 
 - **安全**：修复原 Archery 5 个 P0 安全漏洞，Token 黑名单 fail-close，所有敏感字段 Fernet/AES 加密存储
 - **全面**：支持 11 种数据库引擎（MySQL / PgSQL / Oracle / MongoDB / Redis / ClickHouse 等）
-- **高效**：AI Text2SQL + 工单模板 + 多级自定义审批流，全异步 Celery 执行不阻塞
+- **高效**：AI Text2SQL + 工单模板 + 自定义审批流，全异步 Celery 执行不阻塞
 - **可观测**：内建 Prometheus + Grafana 监控，全流程操作审计
+- **可解释权限**：v2-lite 权限体系已落地，权限拒绝可定位到身份 / 资源范围 / 数据授权层
 
 ## 技术栈
 
@@ -74,14 +75,44 @@ SagittaDB/
 | Pack G | 全链路测试、性能测试、安全扫描 | ✅ 100% |
 | Pack H | Helm Chart、CI/CD、生产环境配置 | ✅ 100% |
 | Security Hardening | Token 黑名单 fail-close、SECRET_KEY 强制校验、AI 路由注册 | ✅ 100% |
-| 多级审批流 | 管理员自定义审批节点 + 前端管理页面 | ✅ 100% |
+| 多级审批流 | v2-lite：`users / manager / any_reviewer` 已落地 | ✅ 100% |
 | 数据库权限管控 | is_active 启停控制、普通用户不可见禁用库、管理员标灰"已禁用" | ✅ 100% |
+| 授权体系 v2-lite | 角色权限、用户组资源范围、库/表级查询授权、权限排查接口 | ✅ 100% |
 | Bug 修复 | MySQL DictCursor 修复、PG 表缺失修复、前端下拉框截断修复 | ✅ 100% |
 
 **总体完成度：100%（v1.0-GA）**
 
 详细进度请见 [docs/sagittadb_progress.md](docs/sagittadb_progress.md)
 产品需求文档请见 [docs/sagittadb_prd.md](docs/sagittadb_prd.md)
+权限设计与收敛方案请见 [docs/sagittadba_auth_redesign_v2.md](docs/sagittadba_auth_redesign_v2.md)
+
+## 权限体系（v2-lite）
+
+当前权限体系采用 5 层职责拆分：
+
+1. `is_superuser`：身份层，超管直接绕过检查。
+2. `Role -> Permission`：功能权限层，决定能做什么。
+3. `UserGroup -> ResourceGroup -> Instance`：资源范围层，决定能看到哪些实例。
+4. `QueryPrivilege(database|table)`：数据授权层，首发仅支持授权给用户本人。
+5. `ApprovalFlow(users|manager|any_reviewer)`：审批流层，决定谁来审。
+
+首发范围内已落地的关键行为：
+
+- 前端菜单和页面访问统一按权限码渲染与拦截
+- `developer` 默认不显示监控、运维、系统管理入口
+- `dba_group` 不具备全局实例能力，只在所属资源组范围内工作
+- 查询权限只保留库级 / 表级，且必须先通过实例范围校验
+- 查询拒绝时可通过 `POST /api/v1/query/access-check/` 返回拒绝层级与原因
+
+## 最近验证
+
+本次 v2-lite 收敛相关验证已通过：
+
+```bash
+cd frontend && npm run typecheck
+cd backend && python3 -m compileall app
+cd backend && ./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py
+```
 
 ## 开发指南
 

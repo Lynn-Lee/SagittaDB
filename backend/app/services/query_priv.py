@@ -1,6 +1,7 @@
 """
-查询权限校验与管理服务（Sprint 2）。
-使用 sqlglot 提取表引用，替代 Archery 1.x 对 goInception 的依赖（修复 P0-3）。
+查询权限校验与管理服务。
+v2-lite: 资源访问范围由 UserGroup -> ResourceGroup -> Instance 决定，
+数据级授权仅保留 user 主体的 database / table 两级粒度。
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from datetime import date
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import AppException, NotFoundException
 from app.models.instance import Instance
@@ -22,7 +24,92 @@ logger = logging.getLogger(__name__)
 class QueryPrivService:
     """查询权限校验与管理。"""
 
-    # ── 权限校验 ──────────────────────────────────────────────
+    @staticmethod
+    def user_has_instance_access(user: dict, instance: Instance) -> bool:
+        if user.get("is_superuser") or "query_all_instances" in user.get("permissions", []):
+            return True
+        user_rg_ids = set(user.get("resource_groups", []))
+        instance_rg_ids = {rg.id for rg in instance.resource_groups}
+        return bool(user_rg_ids & instance_rg_ids)
+
+    @staticmethod
+    def _normalize_scope_type(scope_type: str | None, table_name: str = "") -> tuple[str, int]:
+        if scope_type == "table" or table_name.strip():
+            return "table", 2
+        return "database", 1
+
+    @staticmethod
+    async def _has_db_priv(
+        db: AsyncSession,
+        user_id: int,
+        instance_id: int,
+        db_name: str,
+    ) -> bool:
+        result = await db.execute(
+            select(QueryPrivilege).where(
+                and_(
+                    QueryPrivilege.user_id == user_id,
+                    QueryPrivilege.user_group_id.is_(None),
+                    QueryPrivilege.instance_id == instance_id,
+                    QueryPrivilege.scope_type == "database",
+                    QueryPrivilege.db_name == db_name,
+                    QueryPrivilege.valid_date >= date.today(),
+                    QueryPrivilege.is_deleted == 0,
+                )
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    async def _has_table_priv(
+        db: AsyncSession,
+        user_id: int,
+        instance_id: int,
+        db_name: str,
+        table_name: str,
+    ) -> bool:
+        result = await db.execute(
+            select(QueryPrivilege).where(
+                and_(
+                    QueryPrivilege.user_id == user_id,
+                    QueryPrivilege.user_group_id.is_(None),
+                    QueryPrivilege.instance_id == instance_id,
+                    QueryPrivilege.scope_type == "table",
+                    QueryPrivilege.db_name == db_name,
+                    QueryPrivilege.table_name == table_name,
+                    QueryPrivilege.valid_date >= date.today(),
+                    QueryPrivilege.is_deleted == 0,
+                )
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    async def _resolve_apply_group_id(
+        db: AsyncSession,
+        user: dict,
+        instance_id: int,
+        group_id: int | None,
+    ) -> int:
+        result = await db.execute(
+            select(Instance)
+            .options(selectinload(Instance.resource_groups))
+            .where(Instance.id == instance_id, Instance.is_active.is_(True))
+        )
+        instance = result.scalar_one_or_none()
+        if not instance:
+            raise NotFoundException(f"实例 ID={instance_id} 不存在或已停用")
+        if not QueryPrivService.user_has_instance_access(user, instance):
+            raise AppException("实例不在你的资源组内，不能申请查询权限", code=403)
+
+        allowed_group_ids = {rg.id for rg in instance.resource_groups} & set(user.get("resource_groups", []))
+        if group_id is not None:
+            if group_id not in allowed_group_ids:
+                raise AppException("所选资源组与目标实例不匹配", code=400)
+            return group_id
+        if allowed_group_ids:
+            return sorted(allowed_group_ids)[0]
+        raise AppException("目标实例未关联到你的资源组，无法创建申请", code=400)
 
     @staticmethod
     async def check_query_priv(
@@ -34,36 +121,19 @@ class QueryPrivService:
     ) -> tuple[bool, str]:
         """
         查询权限三层校验：
-          L1: 超管 / 拥有 query_all_instances 权限 → 直接放行
-          L2: 资源组隔离（实例必须在用户资源组内）
-          L3: 库/表级授权记录（含用户组授权、资源组范围授权）
-
-        Returns:
-            (passed, reason)
+          L1: 超管 / query_all_instances
+          L2: 资源组范围
+          L3: 数据级授权（database/table）
         """
-        user_id: int = user["id"]
-        is_superuser: bool = user.get("is_superuser", False)
-        perms: list[str] = user.get("permissions", [])
-
-        # L1: 超管或全量查询权限
-        if is_superuser or "query_all_instances" in perms:
+        if user.get("is_superuser") or "query_all_instances" in user.get("permissions", []):
             return True, "admin"
 
-        # L2: 资源组隔离（实例必须在用户可访问的资源组内）
-        user_rg_ids: list[int] = user.get("resource_groups", [])
-        instance_rg_ids = [rg.id for rg in instance.resource_groups]
-        if not any(rid in instance_rg_ids for rid in user_rg_ids):
+        if not QueryPrivService.user_has_instance_access(user, instance):
             return False, "实例不在你的资源组内"
 
-        # 用户所属组ID列表
-        user_group_ids: list[int] = user.get("user_groups", [])
-
-        # L3: 用 sqlglot 提取表引用，校验库/表级权限
         table_refs = extract_table_refs(sql, db_name, instance.db_type)
         if not table_refs:
-            has_db_priv = await QueryPrivService._has_db_priv(
-                db, user_id, instance.id, db_name, user_group_ids, user_rg_ids
-            )
+            has_db_priv = await QueryPrivService._has_db_priv(db, user["id"], instance.id, db_name)
             if has_db_priv:
                 return True, "db_privilege"
             return False, f"没有数据库 {db_name} 的查询权限，请申请后重试"
@@ -73,128 +143,32 @@ class QueryPrivService:
             table = ref.get("name", "")
             if not table:
                 continue
-            has_priv = await QueryPrivService._has_table_priv(
-                db, user_id, instance.id, schema, table, user_group_ids, user_rg_ids
-            )
-            if not has_priv:
-                has_db = await QueryPrivService._has_db_priv(
-                    db, user_id, instance.id, schema, user_group_ids, user_rg_ids
-                )
-                if not has_db:
-                    return False, f"没有表 {schema}.{table} 的查询权限，请申请后重试"
+
+            if await QueryPrivService._has_table_priv(db, user["id"], instance.id, schema, table):
+                continue
+            if await QueryPrivService._has_db_priv(db, user["id"], instance.id, schema):
+                continue
+            return False, f"没有表 {schema}.{table} 的查询权限，请申请后重试"
 
         return True, "privilege"
 
     @staticmethod
-    async def _has_db_priv(
+    async def explain_query_access(
         db: AsyncSession,
-        user_id: int,
-        instance_id: int,
+        user: dict,
+        instance: Instance,
         db_name: str,
-        user_group_ids: list[int] | None = None,
-        user_rg_ids: list[int] | None = None,
-    ) -> bool:
-        """v2: 检查库级权限，含用户直接授权、用户组授权、资源组范围授权。"""
-        today = date.today()
-        conditions = []
-
-        # 条件1: 用户直接授权
-        user_cond = and_(
-            QueryPrivilege.user_id == user_id,
-            QueryPrivilege.instance_id == instance_id,
-            QueryPrivilege.db_name == db_name,
-            QueryPrivilege.priv_type == 1,
-            QueryPrivilege.valid_date >= today,
-            QueryPrivilege.is_deleted == 0,
+        sql: str,
+    ) -> dict:
+        allowed, reason = await QueryPrivService.check_query_priv(db, user, instance, db_name, sql)
+        layer = (
+            "identity"
+            if reason == "admin"
+            else "resource_scope"
+            if reason == "实例不在你的资源组内"
+            else "data_scope"
         )
-        conditions.append(user_cond)
-
-        # 条件2: 用户组授权
-        if user_group_ids:
-            conditions.append(
-                and_(
-                    QueryPrivilege.user_group_id.in_(user_group_ids),
-                    QueryPrivilege.instance_id == instance_id,
-                    QueryPrivilege.db_name == db_name,
-                    QueryPrivilege.priv_type == 1,
-                    QueryPrivilege.valid_date >= today,
-                    QueryPrivilege.is_deleted == 0,
-                )
-            )
-
-        # 条件3: 资源组范围授权（scope_type=resource_group）
-        if user_rg_ids:
-            conditions.append(
-                and_(
-                    QueryPrivilege.resource_group_id.in_(user_rg_ids),
-                    QueryPrivilege.scope_type == "resource_group",
-                    QueryPrivilege.db_name == db_name,
-                    QueryPrivilege.valid_date >= today,
-                    QueryPrivilege.is_deleted == 0,
-                )
-            )
-
-        from sqlalchemy import or_
-
-        result = await db.execute(select(QueryPrivilege).where(or_(*conditions)))
-        return result.scalar_one_or_none() is not None
-
-    @staticmethod
-    async def _has_table_priv(
-        db: AsyncSession,
-        user_id: int,
-        instance_id: int,
-        db_name: str,
-        table_name: str,
-        user_group_ids: list[int] | None = None,
-        user_rg_ids: list[int] | None = None,
-    ) -> bool:
-        """v2: 检查表级权限，含用户直接授权、用户组授权、资源组范围授权。"""
-        today = date.today()
-        conditions = []
-
-        user_cond = and_(
-            QueryPrivilege.user_id == user_id,
-            QueryPrivilege.instance_id == instance_id,
-            QueryPrivilege.db_name == db_name,
-            QueryPrivilege.table_name == table_name,
-            QueryPrivilege.priv_type == 2,
-            QueryPrivilege.valid_date >= today,
-            QueryPrivilege.is_deleted == 0,
-        )
-        conditions.append(user_cond)
-
-        if user_group_ids:
-            conditions.append(
-                and_(
-                    QueryPrivilege.user_group_id.in_(user_group_ids),
-                    QueryPrivilege.instance_id == instance_id,
-                    QueryPrivilege.db_name == db_name,
-                    QueryPrivilege.table_name == table_name,
-                    QueryPrivilege.priv_type == 2,
-                    QueryPrivilege.valid_date >= today,
-                    QueryPrivilege.is_deleted == 0,
-                )
-            )
-
-        if user_rg_ids:
-            conditions.append(
-                and_(
-                    QueryPrivilege.resource_group_id.in_(user_rg_ids),
-                    QueryPrivilege.scope_type == "resource_group",
-                    QueryPrivilege.db_name == db_name,
-                    (QueryPrivilege.table_name == table_name) | QueryPrivilege.table_name.is_(None),
-                    QueryPrivilege.valid_date >= today,
-                    QueryPrivilege.is_deleted == 0,
-                )
-            )
-
-        from sqlalchemy import or_
-
-        result = await db.execute(select(QueryPrivilege).where(or_(*conditions)))
-        return result.scalar_one_or_none() is not None
-
-    # ── 权限记录管理 ──────────────────────────────────────────
+        return {"allowed": allowed, "reason": reason, "layer": layer}
 
     @staticmethod
     async def list_my_privileges(
@@ -203,12 +177,14 @@ class QueryPrivService:
         query = select(QueryPrivilege).where(
             and_(
                 QueryPrivilege.user_id == user_id,
+                QueryPrivilege.user_group_id.is_(None),
                 QueryPrivilege.is_deleted == 0,
                 QueryPrivilege.valid_date >= date.today(),
             )
         )
         if instance_id:
             query = query.where(QueryPrivilege.instance_id == instance_id)
+        query = query.order_by(QueryPrivilege.instance_id, QueryPrivilege.db_name, QueryPrivilege.table_name)
         result = await db.execute(query)
         return list(result.scalars().all())
 
@@ -217,7 +193,7 @@ class QueryPrivService:
         db: AsyncSession,
         user_id: int,
         instance_id: int,
-        group_id: int,
+        group_id: int | None,
         db_name: str,
         table_name: str,
         valid_date: date,
@@ -226,25 +202,44 @@ class QueryPrivService:
         apply_reason: str,
         audit_auth_groups: str,
         title: str,
+        scope_type: str = "database",
+        user: dict | None = None,
     ) -> QueryPrivilegeApply:
+        if user is None:
+            raise AppException("缺少申请用户上下文", code=400)
+        normalized_scope_type, normalized_priv_type = QueryPrivService._normalize_scope_type(
+            scope_type, table_name
+        )
+        resolved_group_id = await QueryPrivService._resolve_apply_group_id(
+            db, user=user, instance_id=instance_id, group_id=group_id
+        )
+
         apply = QueryPrivilegeApply(
             title=title,
             user_id=user_id,
             instance_id=instance_id,
-            group_id=group_id,
+            user_group_id=None,
+            resource_group_id=resolved_group_id,
+            group_id=resolved_group_id,
+            scope_type=normalized_scope_type,
             db_name=db_name,
             table_name=table_name or "",
             valid_date=valid_date,
             limit_num=limit_num,
-            priv_type=priv_type,
+            priv_type=normalized_priv_type if priv_type not in (1, 2) else normalized_priv_type,
             apply_reason=apply_reason,
-            status=0,  # 待审核
+            status=0,
             audit_auth_groups=audit_auth_groups,
         )
         db.add(apply)
         await db.commit()
         await db.refresh(apply)
-        logger.info("query_priv_apply created: user=%s instance=%s", user_id, instance_id)
+        logger.info(
+            "query_priv_apply created: user=%s instance=%s scope=%s",
+            user_id,
+            instance_id,
+            normalized_scope_type,
+        )
         return apply
 
     @staticmethod
@@ -263,7 +258,6 @@ class QueryPrivService:
 
         total_q = await db.execute(select(func.count()).select_from(query.subquery()))
         total = total_q.scalar_one()
-
         query = query.order_by(QueryPrivilegeApply.created_at.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)
         result = await db.execute(query)
@@ -274,7 +268,7 @@ class QueryPrivService:
         db: AsyncSession,
         apply_id: int,
         auditor: dict,
-        action: str,  # "pass" | "reject"
+        action: str,
         remark: str = "",
     ) -> QueryPrivilegeApply:
         result = await db.execute(
@@ -288,15 +282,20 @@ class QueryPrivService:
 
         if action == "pass":
             apply.status = 1
-            # 创建权限记录
+            normalized_scope_type, normalized_priv_type = QueryPrivService._normalize_scope_type(
+                apply.scope_type, apply.table_name
+            )
             priv = QueryPrivilege(
                 user_id=apply.user_id,
+                user_group_id=None,
                 instance_id=apply.instance_id,
+                resource_group_id=None,
+                scope_type=normalized_scope_type,
                 db_name=apply.db_name,
                 table_name=apply.table_name,
                 valid_date=apply.valid_date,
                 limit_num=apply.limit_num,
-                priv_type=apply.priv_type,
+                priv_type=normalized_priv_type,
                 is_deleted=0,
             )
             db.add(priv)
@@ -318,8 +317,6 @@ class QueryPrivService:
         priv.is_deleted = 1
         await db.commit()
 
-    # ── 查询日志 ──────────────────────────────────────────────
-
     @staticmethod
     async def write_log(
         db: AsyncSession,
@@ -337,7 +334,7 @@ class QueryPrivService:
             user_id=user_id,
             instance_id=instance_id,
             db_name=db_name,
-            sqllog=sql[:10000],  # 截断超长 SQL
+            sqllog=sql[:10000],
             effect_row=effect_row,
             cost_time_ms=cost_time_ms,
             priv_check=priv_check,
@@ -363,7 +360,6 @@ class QueryPrivService:
 
         total_q = await db.execute(select(func.count()).select_from(query.subquery()))
         total = total_q.scalar_one()
-
         query = query.order_by(QueryLog.created_at.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)
         result = await db.execute(query)

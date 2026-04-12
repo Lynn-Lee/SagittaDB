@@ -307,25 +307,22 @@ class AuditService:
         elif approver_type == "group":
             # 资源组成员（含用户组 → 资源组链路）
             from app.models.role import UserGroup
-            from app.models.user import User
+            from app.models.user import Users
 
             user_result = await db.execute(
-                select(User)
+                select(Users)
                 .options(
-                    selectinload(User.resource_groups),
-                    selectinload(User.user_groups).selectinload(UserGroup.resource_groups),
+                    selectinload(Users.user_groups).selectinload(UserGroup.resource_groups),
                 )
-                .where(User.id == operator.get("id"))
+                .where(Users.id == operator.get("id"))
             )
             user_obj = user_result.scalar_one_or_none()
-            direct_rg_ids = {rg.id for rg in (user_obj.resource_groups if user_obj else [])}
             group_rg_ids: set[int] = set()
             if user_obj:
                 for ug in user_obj.user_groups:
                     for rg in ug.resource_groups:
                         group_rg_ids.add(rg.id)
-            all_rg_ids = direct_rg_ids | group_rg_ids
-            if not any(gid in approver_ids for gid in all_rg_ids):
+            if not any(gid in approver_ids for gid in group_rg_ids):
                 raise AppException(
                     f"您不在节点「{node.get('node_name', '')}」要求的资源组中",
                     code=403,
@@ -335,7 +332,7 @@ class AuditService:
             # 直属上级审批
             applicant_id = node.get("applicant_id")
             if applicant_id:
-                from app.models.user import User as UserModel
+                from app.models.user import Users as UserModel
 
                 applicant = await db.execute(select(UserModel).where(UserModel.id == applicant_id))
                 applicant_obj = applicant.scalar_one_or_none()
@@ -377,6 +374,12 @@ class AuditService:
                     )
             else:
                 raise AppException("审批节点未指定角色", code=403)
+
+        else:
+            raise AppException(
+                f"审批节点类型「{approver_type}」不在当前 v2-lite 首发范围内，请调整审批流模板",
+                code=400,
+            )
 
     # ── 待审批工单（按节点权限过滤）────────────────────────────
 

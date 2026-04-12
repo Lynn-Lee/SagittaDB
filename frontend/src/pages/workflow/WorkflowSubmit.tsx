@@ -60,7 +60,7 @@ export default function WorkflowSubmit() {
 
   const submitMut = useMutation({
     mutationFn: workflowApi.create,
-    onSuccess: (data) => {
+    onSuccess: (data: { data: { id: number } }) => {
       msgApi.success('工单提交成功')
       setTimeout(() => navigate(`/workflow/${data.data.id}`), 1000)
     },

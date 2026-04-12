@@ -48,7 +48,7 @@ app/
 └── tasks/        Celery 异步任务
 ```
 
-## 整体进度（v1.0-GA 全部完成）
+## 整体进度（v1.0-GA 基线 + v2-lite 权限收敛）
 
 | 模块 | 状态 |
 |---|---|
@@ -64,7 +64,24 @@ app/
 | Pack G — 全链路测试、性能测试、安全扫描 | ✅ 完成 |
 | Pack H — Helm Chart、CI/CD、生产环境配置 | ✅ 完成 |
 | Security Hardening — 安全加固 | ✅ 完成 |
-| 多级审批流 | ✅ 完成 |
+| 多级审批流 | ✅ 完成（v2-lite 首发 3 种审批人类型） |
+
+## 权限实现口径（v2-lite）
+
+后端当前以“单层单职责”为原则：
+
+- 功能权限：`Role -> Permission`
+- 实例范围：`UserGroup -> ResourceGroup -> Instance`
+- 查询授权：`QueryPrivilege` 首发仅启用 `database / table`
+- 审批流：首发仅启用 `users / manager / any_reviewer`
+
+查询链路新增了权限排查接口：
+
+```bash
+POST /api/v1/query/access-check/
+```
+
+返回 `allowed / reason / layer`，用于区分是卡在身份、资源范围还是数据授权层。
 
 ## 代码规范
 
@@ -80,4 +97,7 @@ mypy app/
 
 # 运行测试
 pytest tests/ -v --cov=app
+
+# v2-lite 授权单测
+./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py
 ```

@@ -25,10 +25,15 @@ const SagittaLogo = ({ size = 28, color = '#165DFF' }: { size?: number; color?: 
   </svg>
 )
 
-const NAV_ITEMS: MenuProps['items'] = [
-  { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
+type NavItem = NonNullable<MenuProps['items']>[number] & {
+  permission?: string
+  children?: NavItem[]
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard', permission: 'menu_dashboard' },
   {
-    key: 'workflow-group', icon: <FileTextOutlined />, label: 'SQL 工单',
+    key: 'workflow-group', icon: <FileTextOutlined />, label: 'SQL 工单', permission: 'menu_sqlworkflow',
     children: [
       { key: '/workflow', label: '工单列表' },
       { key: '/workflow/submit', label: '提交工单' },
@@ -36,15 +41,15 @@ const NAV_ITEMS: MenuProps['items'] = [
     ],
   },
   {
-    key: 'query-group', icon: <SearchOutlined />, label: '在线查询',
+    key: 'query-group', icon: <SearchOutlined />, label: '在线查询', permission: 'menu_query',
     children: [
       { key: '/query', label: '执行查询' },
       { key: '/query/privileges', label: '查询权限' },
     ],
   },
-  { key: '/monitor', icon: <MonitorOutlined />, label: '可观测中心' },
+  { key: '/monitor', icon: <MonitorOutlined />, label: '可观测中心', permission: 'menu_monitor' },
   {
-    key: 'ops-group', icon: <SlidersFilled />, label: '运维工具',
+    key: 'ops-group', icon: <SlidersFilled />, label: '运维工具', permission: 'menu_ops',
     children: [
       { key: '/diagnostic', icon: <BugOutlined />, label: '会话管理' },
       { key: '/slowlog', label: '慢日志分析' },
@@ -54,9 +59,9 @@ const NAV_ITEMS: MenuProps['items'] = [
       { key: '/binlog', label: '回滚辅助' },
     ],
   },
-  { key: '/instance', icon: <DatabaseOutlined />, label: '实例管理' },
+  { key: '/instance', icon: <DatabaseOutlined />, label: '实例管理', permission: 'instance_manage' },
   {
-    key: 'system-group', icon: <SettingOutlined />, label: '系统管理',
+    key: 'system-group', icon: <SettingOutlined />, label: '系统管理', permission: 'menu_system',
     children: [
       { key: '/system/users', label: '用户管理' },
       { key: '/system/groups', label: '资源组管理' },
@@ -67,7 +72,7 @@ const NAV_ITEMS: MenuProps['items'] = [
       { key: '/masking', icon: <EyeInvisibleOutlined />, label: '数据脱敏规则' },
     ],
   },
-  { key: '/audit', icon: <AuditOutlined />, label: '审计日志' },
+  { key: '/audit', icon: <AuditOutlined />, label: '审计日志', permission: 'menu_audit' },
 ]
 
 export default function MainLayout() {
@@ -75,6 +80,7 @@ export default function MainLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuthStore()
+  const hasPermission = useAuthStore((s) => s.hasPermission)
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -86,6 +92,15 @@ export default function MainLayout() {
   ]
 
   const selectedKeys = [location.pathname]
+  const visibleNavItems = NAV_ITEMS
+    .filter((item) => !item.permission || hasPermission(item.permission))
+    .map((item) => {
+      if (!item.children) return item
+      return {
+        ...item,
+        children: item.children.filter(Boolean),
+      }
+    })
   const defaultOpenKeys = ['workflow-group', 'query-group', 'ops-group', 'system-group']
   const initials = (user?.display_name || user?.username || 'S')[0].toUpperCase()
 
@@ -179,7 +194,7 @@ export default function MainLayout() {
         >
           <Menu
             mode="inline"
-            items={NAV_ITEMS}
+            items={visibleNavItems}
             selectedKeys={selectedKeys}
             defaultOpenKeys={defaultOpenKeys}
             onClick={({ key }) => navigate(key)}

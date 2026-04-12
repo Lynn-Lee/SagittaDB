@@ -32,6 +32,7 @@ async def list_my_privileges(
                 "instance_id": p.instance_id,
                 "db_name": p.db_name,
                 "table_name": p.table_name,
+                "scope_type": p.scope_type,
                 "valid_date": p.valid_date.isoformat(),
                 "limit_num": p.limit_num,
                 "priv_type": p.priv_type,
@@ -61,6 +62,8 @@ async def apply_privilege(
         apply_reason=data.apply_reason,
         audit_auth_groups=data.audit_auth_groups,
         title=data.title,
+        scope_type=data.scope_type,
+        user=user,
     )
     return {"status": 0, "msg": "申请已提交", "data": {"apply_id": apply.id}}
 
@@ -93,6 +96,7 @@ async def list_applies(
                 "instance_id": a.instance_id,
                 "db_name": a.db_name,
                 "table_name": a.table_name,
+                "scope_type": a.scope_type,
                 "valid_date": a.valid_date.isoformat(),
                 "limit_num": a.limit_num,
                 "priv_type": a.priv_type,

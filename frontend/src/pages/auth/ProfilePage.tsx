@@ -70,7 +70,7 @@ export default function ProfilePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Text type="secondary">角色</Text>
                 <Tag color={user?.is_superuser ? 'red' : 'blue'}>
-                  {user?.is_superuser ? '超级管理员' : '普通用户'}
+                  {user?.is_superuser ? '超级管理员' : (user?.role || '未分配角色')}
                 </Tag>
               </div>
               <Divider style={{ margin: '4px 0' }} />

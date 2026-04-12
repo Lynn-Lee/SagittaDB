@@ -50,6 +50,7 @@ class InstanceService:
         db_type: str | None = None,
         search: str | None = None,
         resource_group_id: int | None = None,
+        user: dict | None = None,
     ) -> tuple[int, list[Instance]]:
         query = (
             select(Instance)
@@ -70,6 +71,20 @@ class InstanceService:
                 instance_resource_group,
                 Instance.id == instance_resource_group.c.instance_id,
             ).where(instance_resource_group.c.resource_group_id == resource_group_id)
+
+        if user and not (
+            user.get("is_superuser") or "query_all_instances" in user.get("permissions", [])
+        ):
+            user_rg_ids = user.get("resource_groups", [])
+            if not user_rg_ids:
+                return 0, []
+            from app.models.user import instance_resource_group
+
+            query = query.join(
+                instance_resource_group,
+                Instance.id == instance_resource_group.c.instance_id,
+            ).where(instance_resource_group.c.resource_group_id.in_(user_rg_ids))
+            query = query.distinct()
 
         total_q = await db.execute(select(func.count()).select_from(query.subquery()))
         total = total_q.scalar_one()

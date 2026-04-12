@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Spin } from 'antd'
 import AuthGuard from '@/components/common/AuthGuard'
+import PermissionGuard from '@/components/common/PermissionGuard'
 
 const LoginPage            = lazy(() => import('@/pages/auth/LoginPage'))
 const OAuthCallbackPage    = lazy(() => import('@/pages/auth/OAuthCallbackPage'))
@@ -46,29 +47,29 @@ export default function App() {
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/" element={<AuthGuard><MainLayout /></AuthGuard>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard"            element={<Dashboard />} />
-          <Route path="workflow"             element={<WorkflowList />} />
-          <Route path="workflow/submit"      element={<WorkflowSubmit />} />
-          <Route path="workflow/templates"   element={<WorkflowTemplatePage />} />
-          <Route path="workflow/:id"         element={<WorkflowDetail />} />
-          <Route path="query"                element={<QueryPage />} />
-          <Route path="query/privileges"     element={<QueryPrivPage />} />
-          <Route path="monitor"              element={<MonitorPage />} />
-          <Route path="slowlog"              element={<SlowlogPage />} />
-          <Route path="diagnostic"           element={<DiagnosticPage />} />
-          <Route path="archive"              element={<ArchivePage />} />
-          <Route path="binlog"               element={<BinlogPage />} />
-          <Route path="optimize"             element={<OptimizePage />} />
-          <Route path="schema"               element={<DataDictPage />} />
-          <Route path="instance"             element={<InstanceList />} />
-          <Route path="system/users"           element={<UserManagement />} />
-          <Route path="system/groups"        element={<ResourceGroupManagement />} />
-          <Route path="system/roles"            element={<RoleManagement />} />
-          <Route path="system/user-groups"   element={<UserGroupManagement />} />
-          <Route path="system/approval-flows" element={<ApprovalFlowPage />} />
-          <Route path="system/config"        element={<SystemConfig />} />
-          <Route path="masking"              element={<MaskingRulePage />} />
-          <Route path="audit"                element={<AuditLog />} />
+          <Route path="dashboard"            element={<PermissionGuard permission="menu_dashboard"><Dashboard /></PermissionGuard>} />
+          <Route path="workflow"             element={<PermissionGuard permission="menu_sqlworkflow"><WorkflowList /></PermissionGuard>} />
+          <Route path="workflow/submit"      element={<PermissionGuard permission="menu_sqlworkflow"><WorkflowSubmit /></PermissionGuard>} />
+          <Route path="workflow/templates"   element={<PermissionGuard permission="menu_sqlworkflow"><WorkflowTemplatePage /></PermissionGuard>} />
+          <Route path="workflow/:id"         element={<PermissionGuard permission="menu_sqlworkflow"><WorkflowDetail /></PermissionGuard>} />
+          <Route path="query"                element={<PermissionGuard permission="menu_query"><QueryPage /></PermissionGuard>} />
+          <Route path="query/privileges"     element={<PermissionGuard permission="menu_query"><QueryPrivPage /></PermissionGuard>} />
+          <Route path="monitor"              element={<PermissionGuard permission="menu_monitor"><MonitorPage /></PermissionGuard>} />
+          <Route path="slowlog"              element={<PermissionGuard permission="menu_ops"><SlowlogPage /></PermissionGuard>} />
+          <Route path="diagnostic"           element={<PermissionGuard permission="menu_ops"><DiagnosticPage /></PermissionGuard>} />
+          <Route path="archive"              element={<PermissionGuard permission="menu_ops"><ArchivePage /></PermissionGuard>} />
+          <Route path="binlog"               element={<PermissionGuard permission="menu_ops"><BinlogPage /></PermissionGuard>} />
+          <Route path="optimize"             element={<PermissionGuard permission="menu_ops"><OptimizePage /></PermissionGuard>} />
+          <Route path="schema"               element={<PermissionGuard permission="menu_ops"><DataDictPage /></PermissionGuard>} />
+          <Route path="instance"             element={<PermissionGuard permission="instance_manage"><InstanceList /></PermissionGuard>} />
+          <Route path="system/users"         element={<PermissionGuard permission="menu_system"><UserManagement /></PermissionGuard>} />
+          <Route path="system/groups"        element={<PermissionGuard permission="menu_system"><ResourceGroupManagement /></PermissionGuard>} />
+          <Route path="system/roles"         element={<PermissionGuard permission="menu_system"><RoleManagement /></PermissionGuard>} />
+          <Route path="system/user-groups"   element={<PermissionGuard permission="menu_system"><UserGroupManagement /></PermissionGuard>} />
+          <Route path="system/approval-flows" element={<PermissionGuard permission="menu_system"><ApprovalFlowPage /></PermissionGuard>} />
+          <Route path="system/config"        element={<PermissionGuard permission="menu_system"><SystemConfig /></PermissionGuard>} />
+          <Route path="masking"              element={<PermissionGuard permission="menu_system"><MaskingRulePage /></PermissionGuard>} />
+          <Route path="audit"                element={<PermissionGuard permission="menu_audit"><AuditLog /></PermissionGuard>} />
           <Route path="profile"              element={<ProfilePage />} />
           <Route path="*"                    element={<Navigate to="/dashboard" replace />} />
         </Route>

@@ -4,7 +4,6 @@ import { PlusOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryApi } from '@/api/query'
 import { instanceApi } from '@/api/instance'
-import { resourceGroupApi } from '@/api/system'
 import { useAuthStore } from '@/store/auth'
 import dayjs from 'dayjs'
 
@@ -24,6 +23,7 @@ export default function QueryPrivPage() {
   const [applyModalOpen, setApplyModalOpen] = useState(false)
   const [applyForm] = Form.useForm()
   const [instanceId, setInstanceId] = useState<number | undefined>()
+  const [scopeType, setScopeType] = useState<'database' | 'table'>('database')
   const [msgApi, msgCtx] = message.useMessage()
   const isReviewer = user?.is_superuser || user?.permissions?.includes('query_review')
 
@@ -34,7 +34,7 @@ export default function QueryPrivPage() {
   })
 
   // 申请列表
-  const { data: applyData, refetch: refetchApplies } = useQuery({
+  const { data: applyData } = useQuery({
     queryKey: ['query-priv-applies'],
     queryFn: () => queryApi.listApplies({ page_size: 50 }),
   })
@@ -43,10 +43,6 @@ export default function QueryPrivPage() {
   const { data: instanceData } = useQuery({
     queryKey: ['instances-for-priv'],
     queryFn: () => instanceApi.list({ page_size: 200 }),
-  })
-  const { data: rgData } = useQuery({
-    queryKey: ['rg-for-priv'],
-    queryFn: () => resourceGroupApi.list({ page_size: 100 }),
   })
   const { data: dbData } = useQuery({
     queryKey: ['registered-dbs-priv', instanceId],
@@ -71,8 +67,10 @@ export default function QueryPrivPage() {
       const values = await applyForm.validateFields()
       applyMut.mutate({
         ...values,
+        scope_type: values.scope_type,
         valid_date: values.valid_date.format('YYYY-MM-DD'),
         instance_id: instanceId,
+        priv_type: values.scope_type === 'table' ? 2 : 1,
       })
     } catch { /* validation */ }
   }
@@ -80,6 +78,7 @@ export default function QueryPrivPage() {
   const privColumns = [
     { title: '实例ID', dataIndex: 'instance_id', width: 80 },
     { title: '数据库', dataIndex: 'db_name' },
+    { title: '范围', dataIndex: 'scope_type', width: 90, render: (v: string) => <Tag color={v === 'table' ? 'purple' : 'blue'}>{v === 'table' ? '表级' : '库级'}</Tag> },
     { title: '表名', dataIndex: 'table_name', render: (v: string) => v || <Text type="secondary">全库</Text> },
     { title: '行数限制', dataIndex: 'limit_num', width: 90 },
     {
@@ -95,6 +94,7 @@ export default function QueryPrivPage() {
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '标题', dataIndex: 'title', ellipsis: true },
     { title: '申请数据库', dataIndex: 'db_name' },
+    { title: '范围', dataIndex: 'scope_type', width: 90, render: (v: string) => <Tag color={v === 'table' ? 'purple' : 'blue'}>{v === 'table' ? '表级' : '库级'}</Tag> },
     { title: '申请理由', dataIndex: 'apply_reason', ellipsis: true },
     {
       title: '状态', dataIndex: 'status', width: 90,
@@ -141,7 +141,7 @@ export default function QueryPrivPage() {
       {msgCtx}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <Title level={2} style={{ margin: 0 }}>查询权限</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { applyForm.resetFields(); setApplyModalOpen(true) }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => { applyForm.resetFields(); setScopeType('database'); setApplyModalOpen(true) }}>
           申请查询权限
         </Button>
       </div>
@@ -167,21 +167,27 @@ export default function QueryPrivPage() {
               ))}
             </Select>
           </Form.Item>
-          <Form.Item name="group_id" label="资源组" rules={[{ required: true }]}>
-            <Select placeholder="选择资源组">
-              {rgData?.items?.map((rg: any) => <Option key={rg.id} value={rg.id}>{rg.group_name}</Option>)}
+          <Form.Item name="scope_type" label="授权范围" initialValue="database" rules={[{ required: true }]}>
+            <Select onChange={(v) => setScopeType(v)}>
+              <Option value="database">库级授权</Option>
+              <Option value="table">表级授权</Option>
             </Select>
           </Form.Item>
-<Form.Item name="db_name" label="数据库" rules={[{ required: true }]}>
-                <Select placeholder="选择数据库" showSearch disabled={!instanceId}
-                  popupMatchSelectWidth={false} style={{ minWidth: 180 }} optionFilterProp="children">
-                  {(dbData?.items || []).map((d: any) => (
-                    <Option key={d.db_name} value={d.db_name} title={d.db_name}>
-                      {d.db_name}{!d.is_active && <Tag color="default" style={{marginLeft: 4, fontSize: 10}}>已禁用</Tag>}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
+          <Form.Item name="db_name" label="数据库" rules={[{ required: true }]}>
+            <Select placeholder="选择数据库" showSearch disabled={!instanceId}
+              popupMatchSelectWidth={false} style={{ minWidth: 180 }} optionFilterProp="children">
+              {(dbData?.items || []).map((d: any) => (
+                <Option key={d.db_name} value={d.db_name} title={d.db_name}>
+                  {d.db_name}{!d.is_active && <Tag color="default" style={{marginLeft: 4, fontSize: 10}}>已禁用</Tag>}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          {scopeType === 'table' && (
+            <Form.Item name="table_name" label="表名" rules={[{ required: true, message: '请输入表名' }]}>
+              <Input placeholder="如 orders / user_profile" />
+            </Form.Item>
+          )}
           <Form.Item name="valid_date" label="有效期至" rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} disabledDate={d => d.isBefore(dayjs())} />
           </Form.Item>
