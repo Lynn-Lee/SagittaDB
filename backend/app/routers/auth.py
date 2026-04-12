@@ -1,6 +1,7 @@
 """
 认证路由：本地登录、LDAP、第三方 OAuth2（钉钉/飞书/企微/CAS）、2FA、Token 管理。
 """
+
 import logging
 import time
 import uuid
@@ -28,6 +29,8 @@ from app.schemas.auth import (
     LdapLoginRequest,
     LoginRequest,
     RefreshRequest,
+    SmsCodeRequest,
+    SmsLoginRequest,
     TokenResponse,
     TwoFAVerifyRequest,
 )
@@ -44,6 +47,7 @@ async def get_redis():
     from redis.asyncio import Redis
 
     from app.core.config import settings
+
     r = Redis.from_url(settings.REDIS_URL, decode_responses=True)
     try:
         yield r
@@ -71,7 +75,9 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login/form/", response_model=TokenResponse, include_in_schema=False)
-async def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def login_form(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
+):
     return await login(LoginRequest(username=form_data.username, password=form_data.password), db)
 
 
@@ -129,6 +135,7 @@ async def logout(token: str = Depends(oauth2_scheme), redis=Depends(get_redis)):
 @router.post("/2fa/setup/", summary="生成 TOTP 密钥")
 async def setup_2fa(user=Depends(current_user), db: AsyncSession = Depends(get_db)):
     import pyotp
+
     db_user = await UserService.get_by_id(db, user["id"])
     if not db_user:
         raise HTTPException(404, "用户不存在")
@@ -143,8 +150,11 @@ async def setup_2fa(user=Depends(current_user), db: AsyncSession = Depends(get_d
 
 
 @router.post("/2fa/verify/", summary="验证 TOTP 并激活 2FA")
-async def verify_2fa(data: TwoFAVerifyRequest, user=Depends(current_user), db: AsyncSession = Depends(get_db)):
+async def verify_2fa(
+    data: TwoFAVerifyRequest, user=Depends(current_user), db: AsyncSession = Depends(get_db)
+):
     import pyotp
+
     db_user = await UserService.get_by_id(db, user["id"])
     if not db_user or not db_user.totp_secret:
         raise HTTPException(400, "请先调用 /2fa/setup/ 生成密钥")
@@ -157,8 +167,11 @@ async def verify_2fa(data: TwoFAVerifyRequest, user=Depends(current_user), db: A
 
 
 @router.post("/2fa/disable/", summary="禁用 2FA")
-async def disable_2fa(data: TwoFAVerifyRequest, user=Depends(current_user), db: AsyncSession = Depends(get_db)):
+async def disable_2fa(
+    data: TwoFAVerifyRequest, user=Depends(current_user), db: AsyncSession = Depends(get_db)
+):
     import pyotp
+
     db_user = await UserService.get_by_id(db, user["id"])
     if not db_user or not db_user.totp_enabled:
         raise HTTPException(400, "2FA 未启用")
@@ -178,23 +191,72 @@ async def get_me(user=Depends(current_user), db: AsyncSession = Depends(get_db))
         raise HTTPException(404, "用户不存在")
     permissions = await UserService.get_permissions(db, db_user.id)
     return {
-        "id": db_user.id, "username": db_user.username,
-        "display_name": db_user.display_name, "email": db_user.email,
-        "is_superuser": db_user.is_superuser, "is_active": db_user.is_active,
-        "auth_type": db_user.auth_type, "totp_enabled": db_user.totp_enabled,
+        "id": db_user.id,
+        "username": db_user.username,
+        "display_name": db_user.display_name,
+        "email": db_user.email,
+        "is_superuser": db_user.is_superuser,
+        "is_active": db_user.is_active,
+        "auth_type": db_user.auth_type,
+        "totp_enabled": db_user.totp_enabled,
         "permissions": permissions,
-        "resource_groups": [rg.id for rg in db_user.resource_groups],
+        "role": db_user.role.name if db_user.role else None,
+        "role_id": db_user.role_id,
+        "manager_id": db_user.manager_id,
+        "employee_id": db_user.employee_id,
+        "department": db_user.department,
+        "title": db_user.title,
+        "resource_groups": user.get("resource_groups", []),
+        "user_groups": user.get("user_groups", []),
         "tenant_id": db_user.tenant_id,
     }
 
 
 @router.post("/password/change/", summary="修改密码")
-async def change_password(data: ChangePasswordRequest, user=Depends(current_user), db: AsyncSession = Depends(get_db)):
+async def change_password(
+    data: ChangePasswordRequest, user=Depends(current_user), db: AsyncSession = Depends(get_db)
+):
     await UserService.change_password(db, user["id"], data.old_password, data.new_password)
     return {"status": 0, "msg": "密码已修改，请重新登录"}
 
 
+# ── 短信验证码登录（v2）──────────────────────────────────────────
+
+
+@router.post("/sms/send/", summary="发送短信验证码")
+async def sms_send_code(data: SmsCodeRequest, db: AsyncSession = Depends(get_db)):
+    """向指定手机号发送验证码（受频率限制）。"""
+    from app.services.sms_auth import send_sms_code
+
+    result = await send_sms_code(db, data.phone)
+    return result
+
+
+@router.post("/sms/login/", response_model=TokenResponse, summary="短信验证码登录")
+async def sms_login(data: SmsLoginRequest, db: AsyncSession = Depends(get_db)):
+    """用手机号 + 验证码登录。验证码一次性使用，验证成功后自动删除。"""
+    from app.services.sms_auth import verify_sms_code
+    from app.services.user import UserService
+
+    if not await verify_sms_code(data.phone, data.code):
+        raise HTTPException(status_code=401, detail="验证码错误或已过期")
+
+    user = await UserService.get_by_phone(db, data.phone)
+    if not user:
+        raise HTTPException(status_code=404, detail="该手机号未关联任何账号")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="账号已被禁用")
+
+    payload = {"sub": str(user.id), "username": user.username, "tenant_id": user.tenant_id}
+    logger.info("sms_login: %s", user.username)
+    return TokenResponse(
+        access_token=create_access_token(payload),
+        refresh_token=create_refresh_token({"sub": str(user.id), "tenant_id": user.tenant_id}),
+    )
+
+
 # ── 第三方 OAuth2 登录（Pack F）──────────────────────────────
+
 
 @router.get("/{provider}/authorize/", summary="获取第三方登录授权 URL")
 async def oauth_authorize(
@@ -224,7 +286,9 @@ async def oauth_authorize(
     return {"url": url, "state": state}
 
 
-@router.get("/{provider}/callback/", summary="第三方登录回调（由平台跳回）", include_in_schema=False)
+@router.get(
+    "/{provider}/callback/", summary="第三方登录回调（由平台跳回）", include_in_schema=False
+)
 async def oauth_callback(
     provider: str,
     request: Request,

@@ -6,6 +6,7 @@ from pydantic import BaseModel, field_validator
 
 # ─── 用户 ─────────────────────────────────────────────────────
 
+
 class UserCreate(BaseModel):
     username: str
     password: str
@@ -39,6 +40,11 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     is_superuser: bool | None = None
     resource_group_ids: list[int] | None = None
+    role_id: int | None = None
+    manager_id: int | None = None
+    employee_id: str | None = None
+    department: str | None = None
+    title: str | None = None
 
 
 class UserResponse(BaseModel):
@@ -67,6 +73,7 @@ class GrantPermissionRequest(BaseModel):
 
 
 # ─── 资源组 ───────────────────────────────────────────────────
+
 
 class ResourceGroupCreate(BaseModel):
     group_name: str

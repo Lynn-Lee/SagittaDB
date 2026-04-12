@@ -5,7 +5,7 @@ import {
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, TeamOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { resourceGroupApi, userApi } from '@/api/system'
+import { resourceGroupApi, userApi, userGroupApi } from '@/api/system'
 import apiClient from '@/api/client'
 
 const { Title, Text } = Typography
@@ -19,6 +19,7 @@ export default function ResourceGroupManagement() {
   const [search, setSearch] = useState('')
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [targetKeys, setTargetKeys] = useState<string[]>([])
+  const [ugTargetKeys, setUgTargetKeys] = useState<string[]>([])
   const [form] = Form.useForm()
   const [msgApi, msgCtx] = message.useMessage()
 
@@ -27,20 +28,24 @@ export default function ResourceGroupManagement() {
     queryFn: () => resourceGroupApi.list({ search: search || undefined, page_size: 100 }),
   })
 
-  // 所有用户（用于成员穿梭框）
   const { data: allUsers } = useQuery({
     queryKey: ['all-users-for-rg'],
     queryFn: () => userApi.list({ page_size: 200 }),
     enabled: memberModalOpen,
   })
 
-  // 当前资源组成员
+  const { data: allGroups } = useQuery({
+    queryKey: ['all-user-groups-for-rg'],
+    queryFn: () => userGroupApi.list({ page: 1, page_size: 200 }),
+    enabled: memberModalOpen,
+  })
+
   const { data: currentMembers } = useQuery({
     queryKey: ['rg-members', currentRg?.id],
     queryFn: () => apiClient.get(`/system/resource-groups/${currentRg.id}/members/`).then(r => r.data),
     enabled: !!currentRg?.id && memberModalOpen,
-    onSuccess: (data: any) => {
-      setTargetKeys(data.items.map((m: any) => String(m.id)))
+    onSuccess: (d: any) => {
+      setTargetKeys(d.items.map((m: any) => String(m.id)))
     },
   } as any)
 
@@ -80,18 +85,44 @@ export default function ResourceGroupManagement() {
 
   const openCreate = () => { setEditId(null); form.resetFields(); setModalOpen(true) }
   const openEdit = (r: any) => { setEditId(r.id); form.setFieldsValue(r); setModalOpen(true) }
-  const openMembers = (r: any) => {
+  const openMembers = async (r: any) => {
     setCurrentRg(r)
     setTargetKeys([])
+    // Fetch currently linked user groups for this resource group
+    try {
+      const resp = await apiClient.get(`/system/resource-groups/${r.id}/user-groups/`).then(res => res.data)
+      setUgTargetKeys((resp.items ?? []).map((ug: any) => String(ug.id)))
+    } catch {
+      setUgTargetKeys([])
+    }
     setMemberModalOpen(true)
   }
 
-  // 穿梭框数据源
   const transferData = (allUsers?.items || []).map((u: any) => ({
     key: String(u.id),
     title: `${u.username}${u.display_name ? ` (${u.display_name})` : ''}`,
     description: u.email,
   }))
+
+  const ugTransferData = (allGroups?.items ?? []).map((g: any) => ({
+    key: String(g.id),
+    title: g.name_cn || g.name,
+  }))
+
+  const handleSaveMembers = async () => {
+    try {
+      await updateMembersMut.mutateAsync({ rgId: currentRg.id, userIds: targetKeys.map(Number) })
+      await apiClient.put(`/system/resource-groups/${currentRg.id}/user-groups/`, {
+        user_group_ids: ugTargetKeys.map(Number),
+      })
+      qc.invalidateQueries({ queryKey: ['resource-groups'] })
+      setMemberModalOpen(false)
+      msgApi.success('成员和用户组关联已更新')
+      refetch()
+    } catch (e: any) {
+      msgApi.error(e.response?.data?.detail || e.response?.data?.msg || '更新失败')
+    }
+  }
 
   const columns = [
     {
@@ -182,17 +213,18 @@ export default function ResourceGroupManagement() {
         </Form>
       </Modal>
 
-      {/* 成员管理 Modal */}
+      {/* 成员管理 Modal — 包含用户穿梭框 + 用户组穿梭框 */}
       <Modal
         title={`成员管理 — ${currentRg?.group_name || ''}`}
         open={memberModalOpen}
-        onOk={() => updateMembersMut.mutate({ rgId: currentRg.id, userIds: targetKeys.map(Number) })}
+        onOk={handleSaveMembers}
         onCancel={() => setMemberModalOpen(false)}
         confirmLoading={updateMembersMut.isPending}
-        width={680}
+        width={720}
         okText="保存成员"
       >
         <div style={{ marginTop: 16 }}>
+          <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>直接成员</Text>
           <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
             左侧为所有用户，将需要加入此资源组的用户移到右侧：
           </Text>
@@ -204,12 +236,31 @@ export default function ResourceGroupManagement() {
             onChange={(nextTarget) => setTargetKeys(nextTarget as string[])}
             onSelectChange={(s, ts) => setSelectedKeys([...(s as string[]), ...(ts as string[])])}
             render={item => item.title}
-            listStyle={{ width: 280, height: 320 }}
+            listStyle={{ width: 280, height: 280 }}
             showSearch
             filterOption={(val, item) =>
               item.title.toLowerCase().includes(val.toLowerCase())
             }
           />
+
+          <div style={{ marginTop: 24 }}>
+            <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>关联用户组</Text>
+            <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
+              用户组关联后，组内所有成员自动获得此资源组的访问权限：
+            </Text>
+            <Transfer
+              dataSource={ugTransferData}
+              titles={['可选用户组', '已关联']}
+              targetKeys={ugTargetKeys}
+              onChange={(next) => setUgTargetKeys(next as string[])}
+              render={item => item.title}
+              listStyle={{ width: 280, height: 280 }}
+              showSearch
+              filterOption={(val, item) =>
+                (item.title ?? '').toLowerCase().includes(val.toLowerCase())
+              }
+            />
+          </div>
         </div>
       </Modal>
     </div>

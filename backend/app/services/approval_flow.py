@@ -2,6 +2,7 @@
 审批流模板服务。
 负责流程模板的 CRUD 以及为工单创建时生成节点快照。
 """
+
 from __future__ import annotations
 
 import json
@@ -19,13 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 def _fmt_node(node: ApprovalFlowNode) -> dict:
-    return {
+    result = {
         "id": node.id,
         "order": node.order,
         "node_name": node.node_name,
         "approver_type": node.approver_type,
         "approver_ids": json.loads(node.approver_ids or "[]"),
     }
+    if node.approver_group_id:
+        result["approver_group_id"] = node.approver_group_id
+    if node.approver_role_id:
+        result["approver_role_id"] = node.approver_role_id
+    return result
 
 
 def _fmt_flow(flow: ApprovalFlow) -> dict:
@@ -42,7 +48,6 @@ def _fmt_flow(flow: ApprovalFlow) -> dict:
 
 
 class ApprovalFlowService:
-
     @staticmethod
     async def list_flows(db: AsyncSession, include_inactive: bool = False) -> list[dict]:
         """列出所有审批流模板（默认只返回启用的）。"""
@@ -90,6 +95,8 @@ class ApprovalFlowService:
                 node_name=node_data.node_name,
                 approver_type=node_data.approver_type,
                 approver_ids=json.dumps(node_data.approver_ids),
+                approver_group_id=node_data.approver_group_id,
+                approver_role_id=node_data.approver_role_id,
             )
             db.add(node)
 
@@ -139,6 +146,8 @@ class ApprovalFlowService:
                     node_name=node_data.node_name,
                     approver_type=node_data.approver_type,
                     approver_ids=json.dumps(node_data.approver_ids),
+                    approver_group_id=node_data.approver_group_id,
+                    approver_role_id=node_data.approver_role_id,
                 )
                 db.add(node)
 
@@ -148,9 +157,7 @@ class ApprovalFlowService:
     @staticmethod
     async def deactivate_flow(db: AsyncSession, flow_id: int) -> None:
         """软删除：停用审批流（不物理删除，避免影响历史工单记录）。"""
-        result = await db.execute(
-            select(ApprovalFlow).where(ApprovalFlow.id == flow_id)
-        )
+        result = await db.execute(select(ApprovalFlow).where(ApprovalFlow.id == flow_id))
         flow = result.scalar_one_or_none()
         if not flow:
             raise NotFoundException(f"审批流 ID={flow_id} 不存在")
@@ -196,9 +203,11 @@ class ApprovalFlowService:
                 "node_name": node.node_name,
                 "approver_type": node.approver_type,
                 "approver_ids": json.loads(node.approver_ids or "[]"),
-                "status": 0,        # AuditStatus.PENDING
+                "approver_group_id": node.approver_group_id,
+                "approver_role_id": node.approver_role_id,
+                "status": 0,  # AuditStatus.PENDING
                 "operator": None,
                 "operated_at": None,
             }
-            for node in flow.nodes   # 已按 order 排序（relationship 定义了 order_by）
+            for node in flow.nodes  # 已按 order 排序（relationship 定义了 order_by）
         ]

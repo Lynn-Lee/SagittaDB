@@ -46,6 +46,46 @@ export const permissionApi = {
   list: () => apiClient.get('/system/permissions/').then(r => r.data),
 }
 
+// ── 角色 ──────────────────────────────────────────────────────
+export const roleApi = {
+  list: (params?: { page?: number; page_size?: number; is_active?: boolean }) =>
+    apiClient.get('/system/roles/', { params }).then(r => r.data),
+
+  get: (id: number) =>
+    apiClient.get(`/system/roles/${id}/`).then(r => r.data),
+
+  create: (data: {
+    name: string; name_cn?: string; description?: string; permission_codes?: string[]
+  }) => apiClient.post('/system/roles/', data).then(r => r.data),
+
+  update: (id: number, data: any) =>
+    apiClient.put(`/system/roles/${id}/`, data).then(r => r.data),
+
+  delete: (id: number) =>
+    apiClient.delete(`/system/roles/${id}/`).then(r => r.data),
+}
+
+// ── 用户组 ────────────────────────────────────────────────────
+export const userGroupApi = {
+  list: (params?: { page?: number; page_size?: number; is_active?: boolean; parent_id?: number }) =>
+    apiClient.get('/system/user-groups/', { params }).then(r => r.data),
+
+  get: (id: number) =>
+    apiClient.get(`/system/user-groups/${id}/`).then(r => r.data),
+
+  create: (data: {
+    name: string; name_cn?: string; description?: string
+    leader_id?: number; parent_id?: number
+    resource_group_ids?: number[]; member_ids?: number[]
+  }) => apiClient.post('/system/user-groups/', data).then(r => r.data),
+
+  update: (id: number, data: any) =>
+    apiClient.put(`/system/user-groups/${id}/`, data).then(r => r.data),
+
+  delete: (id: number) =>
+    apiClient.delete(`/system/user-groups/${id}/`).then(r => r.data),
+}
+
 // ── 系统初始化 ────────────────────────────────────────────────
 export const systemApi = {
   init: () => apiClient.post('/system/init/').then(r => r.data),

@@ -43,9 +43,9 @@
 | 多级审批流 | 管理员自定义多节点审批流 + 前端管理页面 | ✅ | 100% |
 | 数据库权限管控 | is_active 启停控制、普通用户不可见禁用库、管理员标灰"已禁用" | ✅ | 100% |
 | Bug 修复 | MySQL DictCursor 修复、PG 表缺失修复、前端下拉框截断修复 | ✅ | 100% |
-| 授权体系 v2 | 角色系统（superadmin/dba/dba_group/developer）、用户组、资源组职责拆分、四级授权粒度、直属上级审批、短信验证码 | 📋 | 0% |
+| 授权体系 v2 | 角色系统（superadmin/dba/dba_group/developer）、用户组、资源组职责拆分、四级授权粒度、直属上级审批、短信验证码 | 🔧 | 85% |
 
-**总体完成度：100%（v1.0-GA），v2 授权体系重设计规划中**
+**总体完成度：100%（v1.0-GA），v2 授权体系重设计开发中（85%）**
 
 ---
 
@@ -421,7 +421,7 @@
 
 ---
 
-## 八、规划中：授权体系 v2 重设计
+## 八、开发中：授权体系 v2 重设计（85%）
 
 > 详细方案请见 [sagittadba_auth_redesign_v2.md](sagittadba_auth_redesign_v2.md)
 
@@ -438,6 +438,37 @@
 | 认证方式 | 密码 + OTP + LDAP + OAuth×4 | + 短信验证码 |
 | 资源组 | 用户 + 实例多对多 | 仅实例（用户通过用户组间接关联） |
 
+### 已完成（Phase 1）
+
+| 子项 | 状态 | 说明 |
+|---|---|---|
+| Role + UserGroup 模型 | ✅ | `models/role.py` — Role / UserGroup / 3 关联表 |
+| Users v2 字段 | ✅ | role_id / manager_id / employee_id / department / title |
+| Alembic 迁移 0006-0008 | ✅ | 新建表 + 扩展字段 + QueryPrivilege / ApprovalFlowNode |
+| 内置角色种子数据 | ✅ | superadmin / dba / dba_group / developer |
+| Role + UserGroup CRUD API | ✅ | /roles/ + /user-groups/ 全套路由 |
+| 权限链路升级 | ✅ | current_user 合并角色权限 + 用户组资源组 |
+| 资源组访问链路 | ✅ | /me/ 返回完整资源组，审批 group 类型含用户组链路 |
+| QueryPrivilege 扩展 | ✅ | user_group_id / scope_type / resource_group_id |
+| ApprovalFlowNode 扩展 | ✅ | approver_group_id / approver_role_id / manager 类型 |
+| 短信验证码认证 | ✅ | 阿里云/腾讯云/自定义 HTTP，Redis 限流 |
+| LDAP/OAuth 字段同步 | ✅ | employee_id / department / title / manager_id |
+| 前端角色管理页面 | ✅ | RoleManagement.tsx |
+| 前端用户组管理页面 | ✅ | UserGroupManagement.tsx |
+| 前端路由 + 菜单 | ✅ | App.tsx Route + MainLayout.tsx NAV_ITEMS |
+| 用户管理 v2 字段 | ✅ | 角色选择 / 用户组 / 直属上级 / 工号 / 部门 / 职位 |
+| 资源组用户组关联 | ✅ | 前端穿梭框 + 后端 API |
+| 后端 ruff check | ✅ | 全部通过 |
+
+### 待完成（Phase 2-4）
+
+| 子项 | 状态 | 说明 |
+|---|---|---|
+| 数据迁移脚本 | 📋 | user_permission → Role，user_resource_group → UserGroup |
+| 切换逻辑 | 📋 | require_perm 读取角色权限，资源组路径改用户组→资源组→实例 |
+| 清理旧表 | 📋 | user_permission / user_resource_group |
+| Docker 集成测试 | 📋 | 端到端验证 |
+
 ### 四个内置角色
 
 | Role | 中文名 | 关键特征 |
@@ -449,11 +480,11 @@
 
 ### 迁移计划
 
-1. **Phase 1**：新增表（role / user_group / 关联表），Users 表加字段（零停机）
+1. **Phase 1**（已完成）：新增表 + 扩展字段 + 短信认证 + LDAP 同步 + 前端页面
 2. **Phase 2**：数据迁移脚本（user_permission → Role，user_resource_group → UserGroup + ResourceGroup）
 3. **Phase 3**：切换逻辑（require_perm 读角色权限，资源组路径改用户组→资源组→实例）
 4. **Phase 4**：清理旧表（user_permission / user_resource_group）
 
 ---
 
-*文档最后更新：2026-04-12 · SagittaDB v1.0-GA + v2 授权体系重设计规划中*
+*文档最后更新：2026-04-12 · SagittaDB v1.0-GA + v2 授权体系重设计开发中（85%）*

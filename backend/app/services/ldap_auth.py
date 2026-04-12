@@ -7,6 +7,7 @@ LDAP 认证服务（Pack F-P0）。
   3. 以用户 DN + 密码 re-bind，验证密码正确
   4. 自动 provision 用户（auth_type='ldap'），已存在则更新属性
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,13 +23,21 @@ logger = logging.getLogger(__name__)
 
 
 class LdapAuthService:
-
     @staticmethod
     async def _get_ldap_config(db: AsyncSession) -> dict[str, str]:
         keys = [
-            "ldap_enabled", "ldap_server_uri", "ldap_bind_dn",
-            "ldap_bind_password", "ldap_user_search_base", "ldap_user_filter",
-            "ldap_attr_username", "ldap_attr_email", "ldap_attr_display",
+            "ldap_enabled",
+            "ldap_server_uri",
+            "ldap_bind_dn",
+            "ldap_bind_password",
+            "ldap_user_search_base",
+            "ldap_user_filter",
+            "ldap_attr_username",
+            "ldap_attr_email",
+            "ldap_attr_display",
+            "ldap_attr_employee_id",
+            "ldap_attr_department",
+            "ldap_attr_title",
         ]
         return {k: await SystemConfigService.get_value(db, k) for k in keys}
 
@@ -63,6 +72,9 @@ class LdapAuthService:
         attr_username = cfg.get("ldap_attr_username", "uid")
         attr_email = cfg.get("ldap_attr_email", "mail")
         attr_display = cfg.get("ldap_attr_display", "cn")
+        attr_employee_id = cfg.get("ldap_attr_employee_id", "employeeId")
+        attr_department = cfg.get("ldap_attr_department", "department")
+        attr_title = cfg.get("ldap_attr_title", "title")
 
         if not server_uri or not search_base:
             raise ValueError("LDAP 配置不完整，请在系统配置中填写服务器地址和搜索Base DN")
@@ -75,7 +87,9 @@ class LdapAuthService:
         # Step 1: 用 service account 搜索用户 DN
         try:
             svc_conn = ldap3.Connection(
-                server, bind_dn, bind_pwd,
+                server,
+                bind_dn,
+                bind_pwd,
                 auto_bind=ldap3.AUTO_BIND_NO_TLS,
                 raise_exceptions=True,
             )
@@ -86,7 +100,14 @@ class LdapAuthService:
             svc_conn.search(
                 search_base=search_base,
                 search_filter=search_filter,
-                attributes=[attr_username, attr_email, attr_display],
+                attributes=[
+                    attr_username,
+                    attr_email,
+                    attr_display,
+                    attr_employee_id,
+                    attr_department,
+                    attr_title,
+                ],
             )
         except ldap_exc.LDAPException as e:
             raise ValueError(f"LDAP 搜索失败: {e}") from e
@@ -111,13 +132,18 @@ class LdapAuthService:
         ldap_username = _attr(attr_username, username)
         ldap_email = _attr(attr_email, "")
         ldap_display = _attr(attr_display, ldap_username)
+        ldap_employee_id = _attr(attr_employee_id, "")
+        ldap_department = _attr(attr_department, "")
+        ldap_title = _attr(attr_title, "")
 
         svc_conn.unbind()
 
         # Step 2: 以用户 DN + 密码验证
         try:
             user_conn = ldap3.Connection(
-                server, user_dn, password,
+                server,
+                user_dn,
+                password,
                 auto_bind=ldap3.AUTO_BIND_NO_TLS,
                 raise_exceptions=True,
             )
@@ -129,7 +155,14 @@ class LdapAuthService:
 
         # Step 3: 自动 provision 本地用户
         user = await LdapAuthService._provision_user(
-            db, ldap_username, ldap_email, ldap_display, user_dn
+            db,
+            ldap_username,
+            ldap_email,
+            ldap_display,
+            user_dn,
+            employee_id=ldap_employee_id,
+            department=ldap_department,
+            title=ldap_title,
         )
         return user
 
@@ -140,6 +173,9 @@ class LdapAuthService:
         email: str,
         display_name: str,
         external_id: str,
+        employee_id: str = "",
+        department: str = "",
+        title: str = "",
     ) -> Users:
         """查找或创建 LDAP 用户（auth_type='ldap'），并更新可变属性。"""
         # 先按 external_id 查（用户可能改了用户名）
@@ -165,6 +201,9 @@ class LdapAuthService:
                 auth_type="ldap",
                 external_id=external_id,
                 is_active=True,
+                employee_id=employee_id,
+                department=department,
+                title=title,
             )
             db.add(user)
             logger.info("ldap_user_provisioned: %s", username)
@@ -176,6 +215,12 @@ class LdapAuthService:
                 user.display_name = display_name
             if email:
                 user.email = email
+            if employee_id:
+                user.employee_id = employee_id
+            if department:
+                user.department = department
+            if title:
+                user.title = title
 
         await db.commit()
         await db.refresh(user)

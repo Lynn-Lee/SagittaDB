@@ -1,6 +1,15 @@
 """
 用户、权限组、资源组相关模型。
+
+v2 变更：
+- 新增 role_id（单角色）、manager_id（直属上级）
+- 新增 employee_id / department / title（LDAP/OAuth 同步字段）
+- Users 新增 user_groups 关系（通过 user_group_member）
+- ResourceGroup 新增 user_groups 关系（通过 group_resource_group）
+- 保留 user_resource_group 向后兼容（Phase 3 后移除）
+- 保留 user_permission 向后兼容（Phase 3 后移除）
 """
+
 from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, String, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +33,7 @@ user_resource_group = Table(
 
 class Users(BaseModel):
     """用户表。"""
+
     __tablename__ = "sql_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -47,8 +57,33 @@ class Users(BaseModel):
 
     remark: Mapped[str] = mapped_column(String(500), default="", comment="备注")
 
+    # ── v2: 角色、组织、直属上级 ──────────────────────────────
+    role_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("role.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="角色ID（单角色）",
+    )
+    manager_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("sql_users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="直属上级用户ID",
+    )
+    employee_id: Mapped[str] = mapped_column(String(50), default="", comment="工号")
+    department: Mapped[str] = mapped_column(String(100), default="", comment="部门")
+    title: Mapped[str] = mapped_column(String(100), default="", comment="职位/岗位")
+
+    # ── relationships ────────────────────────────────────────────
     resource_groups: Mapped[list["ResourceGroup"]] = relationship(
         "ResourceGroup", secondary=user_resource_group, back_populates="users"
+    )
+    user_groups: Mapped[list["UserGroup"]] = relationship(  # noqa: F821
+        "UserGroup", secondary="user_group_member", back_populates="members"
+    )
+    role: Mapped["Role | None"] = relationship("Role", foreign_keys=[role_id])  # noqa: F821
+    manager: Mapped["Users | None"] = relationship(  # noqa: F821
+        "Users", remote_side="Users.id", foreign_keys=[manager_id]
     )
 
     __table_args__ = (
@@ -60,12 +95,18 @@ class Users(BaseModel):
 class ResourceGroup(BaseModel):
     """
     资源组：隔离不同团队对实例的访问权限。
-    是企业多团队场景的核心设计（继承自 Archery）。
+
+    v2 变更：资源组只包含实例（不再直接包含用户）。
+    用户通过 用户组 → 资源组 → 实例 链路获得访问权。
+    保留 users 关系向后兼容（Phase 3 后移除 user_resource_group）。
     """
+
     __tablename__ = "resource_group"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    group_name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, comment="资源组名称")
+    group_name: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, comment="资源组名称"
+    )
     group_name_cn: Mapped[str] = mapped_column(String(100), default="", comment="资源组中文名")
     ding_webhook: Mapped[str] = mapped_column(String(500), default="", comment="钉钉 Webhook")
     feishu_webhook: Mapped[str] = mapped_column(String(500), default="", comment="飞书 Webhook")
@@ -74,8 +115,12 @@ class ResourceGroup(BaseModel):
     instances: Mapped[list["Instance"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "Instance", secondary=instance_resource_group, back_populates="resource_groups"
     )
+    # 向后兼容：Phase 3 后移除 user_resource_group，只保留 group_resource_group
     users: Mapped[list[Users]] = relationship(
         Users, secondary=user_resource_group, back_populates="resource_groups"
+    )
+    user_groups: Mapped[list["UserGroup"]] = relationship(  # noqa: F821
+        "UserGroup", secondary="group_resource_group", back_populates="resource_groups"
     )
 
     __table_args__ = (Index("ix_rg_tenant", "tenant_id"),)
@@ -83,13 +128,17 @@ class ResourceGroup(BaseModel):
 
 class Permission(BaseModel):
     """
-    自定义权限表（继承 Archery 的 55 个权限定义）。
-    用户权限通过 user_permission 关联表授予。
+    自定义权限表（继承 Archery 的权限定义）。
+    v2：权限通过 Role → Permission 关联，不再直绑用户。
+    保留 user_permission 向后兼容（Phase 3 后移除）。
     """
+
     __tablename__ = "permission"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    codename: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, comment="权限码")
+    codename: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, comment="权限码"
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False, comment="权限说明")
 
 

@@ -8,6 +8,7 @@
 - _is_authorized_approver 负责按节点类型判断当前用户是否有权限审批。
 - get_pending_for_user 返回当前用户有权限审批的工单列表。
 """
+
 from __future__ import annotations
 
 import json
@@ -31,13 +32,13 @@ from app.models.workflow import (
 logger = logging.getLogger(__name__)
 
 # 操作类型常量
-OP_SUBMIT  = "submit"
-OP_PASS    = "pass"
-OP_REJECT  = "reject"
-OP_CANCEL  = "cancel"
+OP_SUBMIT = "submit"
+OP_PASS = "pass"
+OP_REJECT = "reject"
+OP_CANCEL = "cancel"
 OP_EXECUTE = "execute"
-OP_TIMING  = "timing"
-OP_ABORT   = "abort"
+OP_TIMING = "timing"
+OP_ABORT = "abort"
 
 
 class AuditService:
@@ -119,8 +120,7 @@ class AuditService:
         await db.flush()
 
         await self._write_log(
-            db, audit.id, operator, OP_SUBMIT,
-            remark=f"提交工单：{self.workflow.workflow_name}"
+            db, audit.id, operator, OP_SUBMIT, remark=f"提交工单：{self.workflow.workflow_name}"
         )
         await db.commit()
 
@@ -137,9 +137,7 @@ class AuditService:
         operator: dict,
         remark: str = "",
     ) -> dict:
-        wf_result = await db.execute(
-            select(SqlWorkflow).where(SqlWorkflow.id == workflow_id)
-        )
+        wf_result = await db.execute(select(SqlWorkflow).where(SqlWorkflow.id == workflow_id))
         workflow = wf_result.scalar_one_or_none()
         if not workflow:
             raise NotFoundException(f"工单 ID={workflow_id} 不存在")
@@ -168,9 +166,7 @@ class AuditService:
         operator: dict,
         remark: str,
     ) -> dict:
-        if workflow.status not in (
-            WorkflowStatus.PENDING_REVIEW, WorkflowStatus.REVIEW_PASS
-        ):
+        if workflow.status not in (WorkflowStatus.PENDING_REVIEW, WorkflowStatus.REVIEW_PASS):
             raise AppException("当前状态不允许审批通过", code=400)
 
         groups_info = json.loads(audit.audit_auth_groups_info or "[]")
@@ -221,9 +217,7 @@ class AuditService:
         operator: dict,
         remark: str,
     ) -> dict:
-        if workflow.status not in (
-            WorkflowStatus.PENDING_REVIEW, WorkflowStatus.REVIEW_PASS
-        ):
+        if workflow.status not in (WorkflowStatus.PENDING_REVIEW, WorkflowStatus.REVIEW_PASS):
             raise AppException("当前状态不允许驳回", code=400)
 
         groups_info = json.loads(audit.audit_auth_groups_info or "[]")
@@ -241,8 +235,7 @@ class AuditService:
 
         node_desc = f"「{current_node['node_name']}」" if current_node else ""
         await AuditService._write_log(
-            db, audit.id, operator, OP_REJECT,
-            remark=remark or f"{node_desc}审批人驳回"
+            db, audit.id, operator, OP_REJECT, remark=remark or f"{node_desc}审批人驳回"
         )
         await db.commit()
         return {"msg": "工单已驳回", "status": workflow.status}
@@ -265,18 +258,14 @@ class AuditService:
             raise AppException("当前状态不允许取消", code=400)
 
         # 取消只允许：工单提交人 或 超管
-        if (
-            not operator.get("is_superuser")
-            and operator.get("username") != workflow.engineer
-        ):
+        if not operator.get("is_superuser") and operator.get("username") != workflow.engineer:
             raise AppException("只有工单提交人或超管可以取消工单", code=403)
 
         audit.current_status = AuditStatus.CANCELED
         workflow.status = WorkflowStatus.ABORT
 
         await AuditService._write_log(
-            db, audit.id, operator, OP_CANCEL,
-            remark=remark or "提交人/超管取消工单"
+            db, audit.id, operator, OP_CANCEL, remark=remark or "提交人/超管取消工单"
         )
         await db.commit()
         return {"msg": "工单已取消", "status": workflow.status}
@@ -316,16 +305,27 @@ class AuditService:
                 )
 
         elif approver_type == "group":
-            # 资源组成员
-            from app.models.user import User  # noqa: PLC0415
+            # 资源组成员（含用户组 → 资源组链路）
+            from app.models.role import UserGroup
+            from app.models.user import User
+
             user_result = await db.execute(
                 select(User)
-                .options(selectinload(User.resource_groups))
+                .options(
+                    selectinload(User.resource_groups),
+                    selectinload(User.user_groups).selectinload(UserGroup.resource_groups),
+                )
                 .where(User.id == operator.get("id"))
             )
             user_obj = user_result.scalar_one_or_none()
-            user_group_ids = [rg.id for rg in (user_obj.resource_groups if user_obj else [])]
-            if not any(gid in approver_ids for gid in user_group_ids):
+            direct_rg_ids = {rg.id for rg in (user_obj.resource_groups if user_obj else [])}
+            group_rg_ids: set[int] = set()
+            if user_obj:
+                for ug in user_obj.user_groups:
+                    for rg in ug.resource_groups:
+                        group_rg_ids.add(rg.id)
+            all_rg_ids = direct_rg_ids | group_rg_ids
+            if not any(gid in approver_ids for gid in all_rg_ids):
                 raise AppException(
                     f"您不在节点「{node.get('node_name', '')}」要求的资源组中",
                     code=403,
@@ -376,7 +376,7 @@ class AuditService:
                 continue
 
         total = len(authorized)
-        paginated = authorized[(page - 1) * page_size: page * page_size]
+        paginated = authorized[(page - 1) * page_size : page * page_size]
 
         items = []
         for workflow, inst_name, current_node in paginated:

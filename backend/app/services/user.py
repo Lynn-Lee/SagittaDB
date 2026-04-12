@@ -1,6 +1,7 @@
 """
 用户与资源组业务逻辑服务。
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,12 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 class UserService:
-
     @staticmethod
     async def get_by_id(db: AsyncSession, user_id: int) -> Users | None:
         result = await db.execute(
             select(Users)
-            .options(selectinload(Users.resource_groups))
+            .options(
+                selectinload(Users.resource_groups),
+                selectinload(Users.user_groups),
+                selectinload(Users.role),
+            )
             .where(Users.id == user_id)
         )
         return result.scalar_one_or_none()
@@ -38,8 +42,20 @@ class UserService:
     async def get_by_username(db: AsyncSession, username: str) -> Users | None:
         result = await db.execute(
             select(Users)
-            .options(selectinload(Users.resource_groups))
+            .options(
+                selectinload(Users.resource_groups),
+                selectinload(Users.role),
+            )
             .where(Users.username == username)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_phone(db: AsyncSession, phone: str) -> Users | None:
+        result = await db.execute(
+            select(Users)
+            .options(selectinload(Users.resource_groups))
+            .where(Users.phone == phone, Users.is_active.is_(True))
         )
         return result.scalar_one_or_none()
 
@@ -59,7 +75,7 @@ class UserService:
                 | Users.email.ilike(f"%{search}%")
             )
         if is_active is not None:
-            query = query.where(Users.is_active == is_active)
+            query = query.where(Users.is_active.is_(is_active))
 
         total_result = await db.execute(select(func.count()).select_from(query.subquery()))
         total = total_result.scalar_one()
@@ -111,6 +127,16 @@ class UserService:
             user.is_active = data.is_active
         if data.is_superuser is not None:
             user.is_superuser = data.is_superuser
+        if data.role_id is not None:
+            user.role_id = data.role_id
+        if data.manager_id is not None:
+            user.manager_id = data.manager_id
+        if data.employee_id is not None:
+            user.employee_id = data.employee_id
+        if data.department is not None:
+            user.department = data.department
+        if data.title is not None:
+            user.title = data.title
         if data.resource_group_ids is not None:
             rgs = await ResourceGroupService.get_by_ids(db, data.resource_group_ids)
             user.resource_groups = rgs
@@ -139,6 +165,7 @@ class UserService:
             raise NotFoundException("用户不存在")
         if not verify_password(old_password, user.password):
             from app.core.exceptions import AppException
+
             raise AppException("原密码错误", code=400)
         user.password = hash_password(new_password)
         await db.commit()
@@ -153,16 +180,12 @@ class UserService:
         return list(result.scalars().all())
 
     @staticmethod
-    async def grant_permissions(
-        db: AsyncSession, user_id: int, perm_codes: list[str]
-    ) -> None:
+    async def grant_permissions(db: AsyncSession, user_id: int, perm_codes: list[str]) -> None:
         user = await UserService.get_by_id(db, user_id)
         if not user:
             raise NotFoundException(f"用户 ID={user_id} 不存在")
 
-        result = await db.execute(
-            select(Permission).where(Permission.codename.in_(perm_codes))
-        )
+        result = await db.execute(select(Permission).where(Permission.codename.in_(perm_codes)))
         perms = list(result.scalars().all())
         existing_codes = {p.codename for p in perms}
 
@@ -173,21 +196,18 @@ class UserService:
                 perms.append(perm)
         await db.flush()
 
-        # PostgreSQL: INSERT ... ON CONFLICT DO NOTHING（替代 MySQL 的 OR IGNORE）
         for perm in perms:
-            stmt = pg_insert(user_permission).values(
-                user_id=user_id, permission_id=perm.id
-            ).on_conflict_do_nothing()
+            stmt = (
+                pg_insert(user_permission)
+                .values(user_id=user_id, permission_id=perm.id)
+                .on_conflict_do_nothing()
+            )
             await db.execute(stmt)
         await db.commit()
 
     @staticmethod
-    async def revoke_permissions(
-        db: AsyncSession, user_id: int, perm_codes: list[str]
-    ) -> None:
-        result = await db.execute(
-            select(Permission).where(Permission.codename.in_(perm_codes))
-        )
+    async def revoke_permissions(db: AsyncSession, user_id: int, perm_codes: list[str]) -> None:
+        result = await db.execute(select(Permission).where(Permission.codename.in_(perm_codes)))
         perm_ids = [p.id for p in result.scalars().all()]
         if perm_ids:
             await db.execute(
@@ -202,59 +222,52 @@ class UserService:
     async def init_default_permissions(db: AsyncSession) -> None:
         """初始化标准权限定义。"""
         default_perms = [
-            ("menu_dashboard",                 "Dashboard 菜单"),
-            ("menu_sqlworkflow",               "SQL 工单菜单"),
-            ("sql_submit",                     "提交 SQL 工单"),
-            ("sql_review",                     "审核 SQL 工单"),
-            ("sql_execute",                    "执行工单（自己）"),
+            ("menu_dashboard", "Dashboard 菜单"),
+            ("menu_sqlworkflow", "SQL 工单菜单"),
+            ("sql_submit", "提交 SQL 工单"),
+            ("sql_review", "审核 SQL 工单"),
+            ("sql_execute", "执行工单（自己）"),
             ("sql_execute_for_resource_group", "执行工单（资源组）"),
-            ("query_submit",                   "提交查询"),
-            ("query_applypriv",                "申请查询权限"),
-            ("query_review",                   "审核查询权限申请"),
-            ("query_mgtpriv",                  "管理查询权限"),
-            ("query_all_instances",            "查询所有实例"),
-            ("query_resource_group_instance",  "查询资源组内实例"),
-            ("process_view",                   "查看会话"),
-            ("process_kill",                   "Kill 会话"),
-            ("menu_monitor",                   "可观测中心菜单"),
-            ("monitor_all_instances",          "查看所有实例监控"),
-            ("monitor_config_manage",          "管理采集配置"),
-            ("monitor_apply",                  "申请监控权限"),
-            ("monitor_review",                 "审批监控权限"),
-            ("monitor_alert_manage",           "管理告警规则"),
-            ("archive_apply",                  "申请数据归档"),
-            ("archive_review",                 "审批数据归档"),
-            ("audit_user",                     "查看审计日志"),
-            ("system_config_manage",           "管理系统配置"),
-            ("instance_manage",                "管理实例"),
-            ("resource_group_manage",          "管理资源组"),
-            ("user_manage",                    "管理用户"),
+            ("query_submit", "提交查询"),
+            ("query_applypriv", "申请查询权限"),
+            ("query_review", "审核查询权限申请"),
+            ("query_mgtpriv", "管理查询权限"),
+            ("query_all_instances", "查询所有实例"),
+            ("query_resource_group_instance", "查询资源组内实例"),
+            ("process_view", "查看会话"),
+            ("process_kill", "Kill 会话"),
+            ("menu_monitor", "可观测中心菜单"),
+            ("monitor_all_instances", "查看所有实例监控"),
+            ("monitor_config_manage", "管理采集配置"),
+            ("monitor_apply", "申请监控权限"),
+            ("monitor_review", "审批监控权限"),
+            ("monitor_alert_manage", "管理告警规则"),
+            ("archive_apply", "申请数据归档"),
+            ("archive_review", "审批数据归档"),
+            ("audit_user", "查看审计日志"),
+            ("system_config_manage", "管理系统配置"),
+            ("instance_manage", "管理实例"),
+            ("resource_group_manage", "管理资源组"),
+            ("user_manage", "管理用户"),
         ]
         for codename, name in default_perms:
-            existing = await db.execute(
-                select(Permission).where(Permission.codename == codename)
-            )
+            existing = await db.execute(select(Permission).where(Permission.codename == codename))
             if not existing.scalar_one_or_none():
                 db.add(Permission(codename=codename, name=name))
         await db.commit()
 
 
 class ResourceGroupService:
-
     @staticmethod
     async def get_by_id(db: AsyncSession, rg_id: int) -> ResourceGroup | None:
-        result = await db.execute(
-            select(ResourceGroup).where(ResourceGroup.id == rg_id)
-        )
+        result = await db.execute(select(ResourceGroup).where(ResourceGroup.id == rg_id))
         return result.scalar_one_or_none()
 
     @staticmethod
     async def get_by_ids(db: AsyncSession, rg_ids: list[int]) -> list[ResourceGroup]:
         if not rg_ids:
             return []
-        result = await db.execute(
-            select(ResourceGroup).where(ResourceGroup.id.in_(rg_ids))
-        )
+        result = await db.execute(select(ResourceGroup).where(ResourceGroup.id.in_(rg_ids)))
         return list(result.scalars().all())
 
     @staticmethod
@@ -311,7 +324,8 @@ class ResourceGroupService:
     @staticmethod
     async def get_member_count(db: AsyncSession, rg_id: int) -> int:
         result = await db.execute(
-            select(func.count()).select_from(user_resource_group)
+            select(func.count())
+            .select_from(user_resource_group)
             .where(user_resource_group.c.resource_group_id == rg_id)
         )
         return result.scalar_one()

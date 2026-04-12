@@ -1,8 +1,11 @@
-"""FastAPI 公共 Depends 依赖（Sprint 1 完整实现）。"""
+"""FastAPI 公共 Depends 依赖（v2 授权体系：角色权限 + 用户组资源组链路）。"""
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import decode_token
@@ -20,7 +23,7 @@ async def current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """获取当前登录用户，返回含 permissions 的完整字典。"""
+    """获取当前登录用户，返回含 permissions + role + user_groups 的完整字典。"""
     try:
         payload = decode_token(token)
     except JWTError:
@@ -30,11 +33,12 @@ async def current_user(
     if not user_id:
         raise _401
 
-    # Token 黑名单检查（fail-close：Redis 不可用时拒绝请求，防止已登出 Token 复用）
+    # Token 黑名单检查（fail-close）
     try:
         from redis.asyncio import Redis
 
         from app.core.config import settings
+
         r = Redis.from_url(
             settings.REDIS_URL,
             decode_responses=True,
@@ -48,21 +52,47 @@ async def current_user(
     except HTTPException:
         raise
     except Exception:
-        # Redis 不可用时 fail-close：拒绝所有认证请求，避免已登出 Token 被复用
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="认证服务暂时不可用，请稍后重试",
         ) from None
 
-    from app.services.user import UserService
-    db_user = await UserService.get_by_id(db, int(user_id))
+    from app.models.role import Role, UserGroup
+    from app.models.user import Users
+
+    # 加载用户 + 角色(含权限码) + 用户组
+    result = await db.execute(
+        select(Users)
+        .options(
+            selectinload(Users.resource_groups),
+            selectinload(Users.user_groups).selectinload(UserGroup.resource_groups),
+            selectinload(Users.role).selectinload(Role.permissions),
+        )
+        .where(Users.id == int(user_id))
+    )
+    db_user = result.scalar_one_or_none()
     if not db_user or not db_user.is_active:
         raise _401
 
     if payload.get("requires_2fa") and not payload.get("2fa_verified"):
         raise HTTPException(status_code=403, detail="请先完成二步验证")
 
-    permissions = await UserService.get_permissions(db, db_user.id)
+    # ── v2 权限获取：角色权限 + 用户直接权限（向后兼容）──
+    from app.services.user import UserService
+
+    role_perms: set[str] = set()
+    if db_user.role and db_user.role.permissions:
+        role_perms = {p.codename for p in db_user.role.permissions}
+    direct_perms = await UserService.get_permissions(db, db_user.id)
+    all_perms = role_perms | set(direct_perms)
+
+    # ── v2 资源组获取：用户直接关联 + 用户组关联 ──
+    direct_rg_ids = {rg.id for rg in db_user.resource_groups}
+    group_rg_ids: set[int] = set()
+    for ug in db_user.user_groups:
+        for rg in ug.resource_groups:
+            group_rg_ids.add(rg.id)
+    all_rg_ids = direct_rg_ids | group_rg_ids
 
     return {
         "id": db_user.id,
@@ -70,8 +100,12 @@ async def current_user(
         "display_name": db_user.display_name,
         "is_superuser": db_user.is_superuser,
         "is_active": db_user.is_active,
-        "permissions": permissions,
-        "resource_groups": [rg.id for rg in db_user.resource_groups],
+        "permissions": list(all_perms),
+        "role": db_user.role.name if db_user.role else None,
+        "role_id": db_user.role_id,
+        "manager_id": db_user.manager_id,
+        "resource_groups": list(all_rg_ids),
+        "user_groups": [ug.id for ug in db_user.user_groups],
         "tenant_id": db_user.tenant_id,
     }
 
@@ -84,10 +118,12 @@ async def current_superuser(user: dict = Depends(current_user)) -> dict:
 
 def require_perm(perm: str):
     """权限校验依赖工厂，用法：Depends(require_perm('sql_review'))"""
+
     async def _checker(user: dict = Depends(current_user)) -> dict:
         if user.get("is_superuser"):
             return user
         if perm not in user.get("permissions", []):
             raise HTTPException(status_code=403, detail=f"缺少权限：{perm}")
         return user
+
     return _checker

@@ -1,6 +1,7 @@
 """
 认证模块 Pydantic Schema。
 """
+
 from pydantic import BaseModel, field_validator
 
 
@@ -38,6 +39,22 @@ class ChangePasswordRequest(BaseModel):
 class LdapLoginRequest(BaseModel):
     username: str
     password: str
+
+
+class SmsCodeRequest(BaseModel):
+    phone: str
+
+    @field_validator("phone")
+    @classmethod
+    def phone_valid(cls, v: str) -> str:
+        if len(v) < 6:
+            raise ValueError("手机号格式不正确")
+        return v
+
+
+class SmsLoginRequest(BaseModel):
+    phone: str
+    code: str
 
 
 class UserMeResponse(BaseModel):
