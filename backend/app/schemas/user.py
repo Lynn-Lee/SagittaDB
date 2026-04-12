@@ -15,6 +15,12 @@ class UserCreate(BaseModel):
     phone: str = ""
     is_superuser: bool = False
     resource_group_ids: list[int] = []
+    role_id: int | None = None
+    manager_id: int | None = None
+    employee_id: str = ""
+    department: str = ""
+    title: str = ""
+    user_group_ids: list[int] = []
 
     @field_validator("username")
     @classmethod

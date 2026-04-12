@@ -6,7 +6,6 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, TeamOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { resourceGroupApi, userApi, userGroupApi } from '@/api/system'
-import apiClient from '@/api/client'
 
 const { Title, Text } = Typography
 
@@ -42,7 +41,7 @@ export default function ResourceGroupManagement() {
 
   const { data: currentMembers } = useQuery({
     queryKey: ['rg-members', currentRg?.id],
-    queryFn: () => apiClient.get(`/system/resource-groups/${currentRg.id}/members/`).then(r => r.data),
+    queryFn: () => resourceGroupApi.listMembers(currentRg!.id),
     enabled: !!currentRg?.id && memberModalOpen,
     onSuccess: (d: any) => {
       setTargetKeys(d.items.map((m: any) => String(m.id)))
@@ -65,7 +64,7 @@ export default function ResourceGroupManagement() {
   })
   const updateMembersMut = useMutation({
     mutationFn: ({ rgId, userIds }: any) =>
-      apiClient.post(`/system/resource-groups/${rgId}/members/`, { user_ids: userIds }).then(r => r.data),
+      resourceGroupApi.updateMembers(rgId, userIds),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['resource-groups'] })
       qc.invalidateQueries({ queryKey: ['rg-members', currentRg?.id] })
@@ -90,7 +89,7 @@ export default function ResourceGroupManagement() {
     setTargetKeys([])
     // Fetch currently linked user groups for this resource group
     try {
-      const resp = await apiClient.get(`/system/resource-groups/${r.id}/user-groups/`).then(res => res.data)
+      const resp = await resourceGroupApi.listUserGroups(r.id)
       setUgTargetKeys((resp.items ?? []).map((ug: any) => String(ug.id)))
     } catch {
       setUgTargetKeys([])
@@ -112,9 +111,7 @@ export default function ResourceGroupManagement() {
   const handleSaveMembers = async () => {
     try {
       await updateMembersMut.mutateAsync({ rgId: currentRg.id, userIds: targetKeys.map(Number) })
-      await apiClient.put(`/system/resource-groups/${currentRg.id}/user-groups/`, {
-        user_group_ids: ugTargetKeys.map(Number),
-      })
+      await resourceGroupApi.updateUserGroups(currentRg.id, ugTargetKeys.map(Number))
       qc.invalidateQueries({ queryKey: ['resource-groups'] })
       setMemberModalOpen(false)
       msgApi.success('成员和用户组关联已更新')

@@ -103,6 +103,11 @@ class UserService:
             phone=data.phone,
             is_superuser=data.is_superuser,
             auth_type="local",
+            role_id=data.role_id if data.role_id else None,
+            manager_id=data.manager_id if data.manager_id else None,
+            employee_id=data.employee_id,
+            department=data.department,
+            title=data.title,
         )
         db.add(user)
         await db.flush()
@@ -110,6 +115,14 @@ class UserService:
         if data.resource_group_ids:
             rgs = await ResourceGroupService.get_by_ids(db, data.resource_group_ids)
             user.resource_groups = rgs
+
+        if data.user_group_ids:
+            from app.models.role import UserGroup
+
+            ug_result = await db.execute(
+                select(UserGroup).where(UserGroup.id.in_(data.user_group_ids))
+            )
+            user.user_groups = list(ug_result.scalars().all())
 
         await db.commit()
         user = await UserService.get_by_id(db, user.id)

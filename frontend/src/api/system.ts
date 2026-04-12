@@ -10,7 +10,10 @@ export const userApi = {
 
   create: (data: {
     username: string; password: string; display_name?: string
-    email?: string; phone?: string; is_superuser?: boolean; resource_group_ids?: number[]
+    email?: string; phone?: string; is_superuser?: boolean
+    resource_group_ids?: number[]; role_id?: number; manager_id?: number
+    employee_id?: string; department?: string; title?: string
+    user_group_ids?: number[]
   }) => apiClient.post('/system/users/', data).then(r => r.data),
 
   update: (id: number, data: any) =>
@@ -39,6 +42,18 @@ export const resourceGroupApi = {
 
   delete: (id: number) =>
     apiClient.delete(`/system/resource-groups/${id}/`).then(r => r.data),
+
+  listMembers: (id: number) =>
+    apiClient.get(`/system/resource-groups/${id}/members/`).then(r => r.data),
+
+  updateMembers: (id: number, userIds: number[]) =>
+    apiClient.post(`/system/resource-groups/${id}/members/`, { user_ids: userIds }).then(r => r.data),
+
+  listUserGroups: (id: number) =>
+    apiClient.get(`/system/resource-groups/${id}/user-groups/`).then(r => r.data),
+
+  updateUserGroups: (id: number, userGroupIds: number[]) =>
+    apiClient.put(`/system/resource-groups/${id}/user-groups/`, { user_group_ids: userGroupIds }).then(r => r.data),
 }
 
 // ── 权限列表 ──────────────────────────────────────────────────
