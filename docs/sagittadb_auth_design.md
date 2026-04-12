@@ -1,4 +1,6 @@
-# SagittaDB 授权体系设计方案
+# SagittaDB 授权体系设计方案（v1 — 现状）
+
+> ⚠️ **本方案描述的是当前系统的权限体系现状。** 下一版本重设计方案请见 [sagittadba_auth_redesign_v2.md](sagittadba_auth_redesign_v2.md)，包含角色系统（Role）、用户组（UserGroup）、资源组职责拆分、四级授权粒度、直属上级审批节点、短信验证码等全面升级。
 
 ---
 

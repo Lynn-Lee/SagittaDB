@@ -41,8 +41,11 @@
 | 品牌升级 | SagittaDB 品牌 UI 全面更新 | ✅ | 100% |
 | Security Hardening | Token 黑名单 fail-close、SECRET_KEY 强制校验、Text2SQL 分层、依赖版本收紧 | ✅ | 100% |
 | 多级审批流 | 管理员自定义多节点审批流 + 前端管理页面 | ✅ | 100% |
+| 数据库权限管控 | is_active 启停控制、普通用户不可见禁用库、管理员标灰"已禁用" | ✅ | 100% |
+| Bug 修复 | MySQL DictCursor 修复、PG 表缺失修复、前端下拉框截断修复 | ✅ | 100% |
+| 授权体系 v2 | 角色系统（superadmin/dba/dba_group/developer）、用户组、资源组职责拆分、四级授权粒度、直属上级审批、短信验证码 | 📋 | 0% |
 
-**总体完成度：100%**
+**总体完成度：100%（v1.0-GA），v2 授权体系重设计规划中**
 
 ---
 
@@ -418,4 +421,39 @@
 
 ---
 
-*文档最后更新：2026-04-12 · SagittaDB v1.0-GA（Pack A~H + Security Hardening + 多级审批流 + 数据库权限管控 + Bug 修复，功能完整）*
+## 八、规划中：授权体系 v2 重设计
+
+> 详细方案请见 [sagittadba_auth_redesign_v2.md](sagittadba_auth_redesign_v2.md)
+
+### 核心变更
+
+| 变更项 | 现状（v1） | 规划（v2） |
+|---|---|---|
+| 权限模型 | 26 个权限码直绑 User（扁平） | Role → Permission（4个内置角色 + 自定义角色） |
+| 实例隔离 | User → ResourceGroup → Instance | UserGroup → ResourceGroup → Instance |
+| 查询授权 | QueryPrivilege 仅授权给用户 | 支持授权给用户或用户组，四级粒度 |
+| DBA 角色 | 无（is_superuser 或扁平权限码） | dba（全局）/ dba_group（资源组内） |
+| 审批流 | 指定用户 / 资源组 / 任意审批人 | + 直属上级 / 用户组 / 角色持有者 |
+| 用户信息 | 无工号/部门/岗位/直属上级 | + employee_id / department / title / manager_id |
+| 认证方式 | 密码 + OTP + LDAP + OAuth×4 | + 短信验证码 |
+| 资源组 | 用户 + 实例多对多 | 仅实例（用户通过用户组间接关联） |
+
+### 四个内置角色
+
+| Role | 中文名 | 关键特征 |
+|---|---|---|
+| `superadmin` | 超级管理员 | is_superuser=True，绕过一切检查 |
+| `dba` | 全局 DBA | 运维权限 + query_all_instances + monitor_all_instances |
+| `dba_group` | 资源组 DBA | 运维权限，实例范围限于资源组 |
+| `developer` | 开发工程师 | 工单提交 + 查询申请，需授权才能查库 |
+
+### 迁移计划
+
+1. **Phase 1**：新增表（role / user_group / 关联表），Users 表加字段（零停机）
+2. **Phase 2**：数据迁移脚本（user_permission → Role，user_resource_group → UserGroup + ResourceGroup）
+3. **Phase 3**：切换逻辑（require_perm 读角色权限，资源组路径改用户组→资源组→实例）
+4. **Phase 4**：清理旧表（user_permission / user_resource_group）
+
+---
+
+*文档最后更新：2026-04-12 · SagittaDB v1.0-GA + v2 授权体系重设计规划中*
