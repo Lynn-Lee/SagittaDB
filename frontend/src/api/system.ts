@@ -11,7 +11,7 @@ export const userApi = {
   create: (data: {
     username: string; password: string; display_name?: string
     email?: string; phone?: string; is_superuser?: boolean
-    resource_group_ids?: number[]; role_id?: number; manager_id?: number
+    role_id?: number; manager_id?: number
     employee_id?: string; department?: string; title?: string
     user_group_ids?: number[]
   }) => apiClient.post('/system/users/', data).then(r => r.data),

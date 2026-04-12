@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import {
   Button, Card, Form, Input, Modal, Popconfirm,
-  Select, Space, Table, Tag, Transfer, Typography, message,
+  Space, Table, Tag, Transfer, Typography, message,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, TeamOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, TeamOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { resourceGroupApi, userApi, userGroupApi } from '@/api/system'
+import { resourceGroupApi, userGroupApi } from '@/api/system'
 
 const { Title, Text } = Typography
 
@@ -16,21 +16,14 @@ export default function ResourceGroupManagement() {
   const [editId, setEditId] = useState<number | null>(null)
   const [currentRg, setCurrentRg] = useState<any>(null)
   const [search, setSearch] = useState('')
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([])
-  const [targetKeys, setTargetKeys] = useState<string[]>([])
   const [ugTargetKeys, setUgTargetKeys] = useState<string[]>([])
+  const [savingMembers, setSavingMembers] = useState(false)
   const [form] = Form.useForm()
   const [msgApi, msgCtx] = message.useMessage()
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['resource-groups', search],
     queryFn: () => resourceGroupApi.list({ search: search || undefined, page_size: 100 }),
-  })
-
-  const { data: allUsers } = useQuery({
-    queryKey: ['all-users-for-rg'],
-    queryFn: () => userApi.list({ page_size: 200 }),
-    enabled: memberModalOpen,
   })
 
   const { data: allGroups } = useQuery({
@@ -43,10 +36,7 @@ export default function ResourceGroupManagement() {
     queryKey: ['rg-members', currentRg?.id],
     queryFn: () => resourceGroupApi.listMembers(currentRg!.id),
     enabled: !!currentRg?.id && memberModalOpen,
-    onSuccess: (d: any) => {
-      setTargetKeys(d.items.map((m: any) => String(m.id)))
-    },
-  } as any)
+  })
 
   const createMut = useMutation({
     mutationFn: resourceGroupApi.create,
@@ -62,18 +52,6 @@ export default function ResourceGroupManagement() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['resource-groups'] }); msgApi.success('已删除') },
     onError: (e: any) => msgApi.error(e.response?.data?.msg || '删除失败'),
   })
-  const updateMembersMut = useMutation({
-    mutationFn: ({ rgId, userIds }: any) =>
-      resourceGroupApi.updateMembers(rgId, userIds),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['resource-groups'] })
-      qc.invalidateQueries({ queryKey: ['rg-members', currentRg?.id] })
-      setMemberModalOpen(false)
-      msgApi.success('成员已更新')
-      refetch()
-    },
-    onError: (e: any) => msgApi.error(e.response?.data?.msg || '更新失败'),
-  })
 
   const handleSubmit = async () => {
     try {
@@ -86,8 +64,6 @@ export default function ResourceGroupManagement() {
   const openEdit = (r: any) => { setEditId(r.id); form.setFieldsValue(r); setModalOpen(true) }
   const openMembers = async (r: any) => {
     setCurrentRg(r)
-    setTargetKeys([])
-    // Fetch currently linked user groups for this resource group
     try {
       const resp = await resourceGroupApi.listUserGroups(r.id)
       setUgTargetKeys((resp.items ?? []).map((ug: any) => String(ug.id)))
@@ -97,12 +73,6 @@ export default function ResourceGroupManagement() {
     setMemberModalOpen(true)
   }
 
-  const transferData = (allUsers?.items || []).map((u: any) => ({
-    key: String(u.id),
-    title: `${u.username}${u.display_name ? ` (${u.display_name})` : ''}`,
-    description: u.email,
-  }))
-
   const ugTransferData = (allGroups?.items ?? []).map((g: any) => ({
     key: String(g.id),
     title: g.name_cn || g.name,
@@ -110,15 +80,25 @@ export default function ResourceGroupManagement() {
 
   const handleSaveMembers = async () => {
     try {
-      await updateMembersMut.mutateAsync({ rgId: currentRg.id, userIds: targetKeys.map(Number) })
+      setSavingMembers(true)
       await resourceGroupApi.updateUserGroups(currentRg.id, ugTargetKeys.map(Number))
       qc.invalidateQueries({ queryKey: ['resource-groups'] })
+      qc.invalidateQueries({ queryKey: ['rg-members', currentRg?.id] })
       setMemberModalOpen(false)
-      msgApi.success('成员和用户组关联已更新')
+      msgApi.success('用户组关联已更新')
       refetch()
     } catch (e: any) {
       msgApi.error(e.response?.data?.detail || e.response?.data?.msg || '更新失败')
+    } finally {
+      setSavingMembers(false)
     }
+  }
+
+  const dbTypeColor: Record<string, string> = {
+    mysql: '#4479A1', pgsql: '#336791', postgresql: '#336791',
+    oracle: '#F80000', mongodb: '#47A248', redis: '#DC382D',
+    clickhouse: '#FFCC00', mssql: '#CC2927', elasticsearch: '#FEC514',
+    cassandra: '#1287B1', doris: '#4A90D9', tidb: '#E2231A',
   }
 
   const columns = [
@@ -132,28 +112,32 @@ export default function ResourceGroupManagement() {
       ),
     },
     {
-      title: '成员数', dataIndex: 'member_count', width: 90,
-      render: (v: number, r: any) => (
-        <Button type="link" size="small" icon={<TeamOutlined />} onClick={() => openMembers(r)}>
-          {v} 人
-        </Button>
-      ),
+      title: '数据库实例', key: 'instances', width: 300,
+      render: (_: any, r: any) => {
+        const instances: any[] = r.instances ?? []
+        if (!instances.length) return <Text type="secondary">未关联实例</Text>
+        return (
+          <Space wrap size={[4, 4]}>
+            {instances.map((inst: any) => (
+              <Tag key={inst.id} color={dbTypeColor[inst.db_type] || '#666'} style={{ fontSize: 12 }}>
+                <DatabaseOutlined style={{ marginRight: 4 }} />
+                {inst.instance_name}
+                <Text type="secondary" style={{ fontSize: 11, marginLeft: 4, color: 'rgba(255,255,255,0.7)' }}>
+                  {inst.host}:{inst.port}
+                </Text>
+              </Tag>
+            ))}
+          </Space>
+        )
+      },
     },
     {
       title: '用户组', dataIndex: 'user_group_count', width: 80,
-      render: (v: number) => v ? <Tag color="blue">{v} 个</Tag> : <Text type="secondary">0</Text>,
-    },
-    {
-      title: '钉钉 Webhook', dataIndex: 'ding_webhook', width: 180, ellipsis: true,
-      render: (v: string) => v
-        ? <Text type="secondary" style={{ fontSize: 11 }} title={v}>{v.slice(0, 30)}...</Text>
-        : <Text type="secondary">—</Text>,
-    },
-    {
-      title: '飞书 Webhook', dataIndex: 'feishu_webhook', width: 180, ellipsis: true,
-      render: (v: string) => v
-        ? <Text type="secondary" style={{ fontSize: 11 }} title={v}>{v.slice(0, 30)}...</Text>
-        : <Text type="secondary">—</Text>,
+      render: (v: number, r: any) => (
+        <Button type="link" size="small" icon={<TeamOutlined />} onClick={() => openMembers(r)}>
+          {v} 个
+        </Button>
+      ),
     },
     {
       title: '状态', dataIndex: 'is_active', width: 80,
@@ -164,7 +148,7 @@ export default function ResourceGroupManagement() {
       render: (_: any, r: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-          <Popconfirm title="确认删除？删除后成员关联将清除"
+          <Popconfirm title="确认删除？"
             onConfirm={() => deleteMut.mutate(r.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -214,37 +198,18 @@ export default function ResourceGroupManagement() {
         </Form>
       </Modal>
 
-      {/* 成员管理 Modal — 包含用户穿梭框 + 用户组穿梭框 */}
+      {/* 用户组关联 Modal */}
       <Modal
-        title={`成员管理 — ${currentRg?.group_name || ''}`}
+        title={`用户组管理 — ${currentRg?.group_name || ''}`}
         open={memberModalOpen}
         onOk={handleSaveMembers}
         onCancel={() => setMemberModalOpen(false)}
-        confirmLoading={updateMembersMut.isPending}
+        confirmLoading={savingMembers}
         width={720}
-        okText="保存成员"
+        okText="保存关联"
       >
         <div style={{ marginTop: 16 }}>
-          <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>直接成员</Text>
-          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
-            左侧为所有用户，将需要加入此资源组的用户移到右侧：
-          </Text>
-          <Transfer
-            dataSource={transferData}
-            titles={['所有用户', '资源组成员']}
-            targetKeys={targetKeys}
-            selectedKeys={selectedKeys}
-            onChange={(nextTarget) => setTargetKeys(nextTarget as string[])}
-            onSelectChange={(s, ts) => setSelectedKeys([...(s as string[]), ...(ts as string[])])}
-            render={item => item.title}
-            listStyle={{ width: 280, height: 280 }}
-            showSearch
-            filterOption={(val, item) =>
-              item.title.toLowerCase().includes(val.toLowerCase())
-            }
-          />
-
-          <div style={{ marginTop: 24 }}>
+          <div style={{ marginBottom: 24 }}>
             <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>关联用户组</Text>
             <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
               用户组关联后，组内所有成员自动获得此资源组的访问权限：
@@ -261,6 +226,20 @@ export default function ResourceGroupManagement() {
                 (item.title ?? '').toLowerCase().includes(val.toLowerCase())
               }
             />
+          </div>
+
+          <div>
+            <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>当前成员（通过用户组自动获取）</Text>
+            <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
+              成员由关联的用户组自动产生，无需手动添加：
+            </Text>
+            <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid #f0f0f0', borderRadius: 6, padding: 12 }}>
+              {currentMembers?.items?.length
+                ? currentMembers.items.map((m: any) => (
+                  <Tag key={m.id} style={{ marginBottom: 4 }}>{m.username}{m.display_name ? ` (${m.display_name})` : ''}</Tag>
+                ))
+                : <Text type="secondary">暂无成员</Text>}
+            </div>
           </div>
         </div>
       </Modal>

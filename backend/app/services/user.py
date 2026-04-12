@@ -1,5 +1,8 @@
 """
 用户与资源组业务逻辑服务。
+
+Phase 4：移除 user_permission / user_resource_group 旧表引用。
+权限现在通过 Role → role_permission 获取；资源组通过 UserGroup → group_resource_group 获取。
 """
 
 from __future__ import annotations
@@ -7,14 +10,13 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import delete, func, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.security import hash_password, verify_password
 from app.models.role import role_permission
-from app.models.user import Permission, ResourceGroup, Users, user_permission, user_resource_group
+from app.models.user import Permission, ResourceGroup, Users
 from app.schemas.user import (
     ResourceGroupCreate,
     ResourceGroupUpdate,
@@ -31,7 +33,6 @@ class UserService:
         result = await db.execute(
             select(Users)
             .options(
-                selectinload(Users.resource_groups),
                 selectinload(Users.user_groups),
                 selectinload(Users.role),
             )
@@ -44,7 +45,6 @@ class UserService:
         result = await db.execute(
             select(Users)
             .options(
-                selectinload(Users.resource_groups),
                 selectinload(Users.role),
             )
             .where(Users.username == username)
@@ -54,9 +54,7 @@ class UserService:
     @staticmethod
     async def get_by_phone(db: AsyncSession, phone: str) -> Users | None:
         result = await db.execute(
-            select(Users)
-            .options(selectinload(Users.resource_groups))
-            .where(Users.phone == phone, Users.is_active.is_(True))
+            select(Users).where(Users.phone == phone, Users.is_active.is_(True))
         )
         return result.scalar_one_or_none()
 
@@ -69,7 +67,6 @@ class UserService:
         is_active: bool | None = None,
     ) -> tuple[int, list[Users]]:
         query = select(Users).options(
-            selectinload(Users.resource_groups),
             selectinload(Users.user_groups),
             selectinload(Users.role),
         )
@@ -112,10 +109,6 @@ class UserService:
         db.add(user)
         await db.flush()
 
-        if data.resource_group_ids:
-            rgs = await ResourceGroupService.get_by_ids(db, data.resource_group_ids)
-            user.resource_groups = rgs
-
         if data.user_group_ids:
             from app.models.role import UserGroup
 
@@ -156,9 +149,6 @@ class UserService:
             user.department = data.department
         if data.title is not None:
             user.title = data.title
-        if data.resource_group_ids is not None:
-            rgs = await ResourceGroupService.get_by_ids(db, data.resource_group_ids)
-            user.resource_groups = rgs
         if data.user_group_ids is not None:
             from app.models.role import UserGroup
 
@@ -198,10 +188,14 @@ class UserService:
 
     @staticmethod
     async def get_permissions(db: AsyncSession, user_id: int) -> list[str]:
+        """v2: 获取用户权限（通过角色获取，不再查 user_permission）。"""
+        user = await UserService.get_by_id(db, user_id)
+        if not user or not user.role_id:
+            return []
         result = await db.execute(
             select(Permission.codename)
-            .join(user_permission, Permission.id == user_permission.c.permission_id)
-            .where(user_permission.c.user_id == user_id)
+            .join(role_permission, Permission.id == role_permission.c.permission_id)
+            .where(role_permission.c.role_id == user.role_id)
         )
         return list(result.scalars().all())
 
@@ -209,23 +203,28 @@ class UserService:
     async def get_merged_permissions(
         db: AsyncSession, user_id: int, db_user: Users | None = None
     ) -> list[str]:
-        """v2: 合并角色权限 + 用户直接权限。"""
-
-        direct = set(await UserService.get_permissions(db, user_id))
-        role_perms: set[str] = set()
+        """v2: 获取用户合并权限（角色权限，兼容无角色用户返回空列表）。"""
         if db_user is None:
             db_user = await UserService.get_by_id(db, user_id)
-        if db_user and db_user.role_id:
-            result = await db.execute(
-                select(Permission.codename)
-                .join(role_permission, Permission.id == role_permission.c.permission_id)
-                .where(role_permission.c.role_id == db_user.role_id)
-            )
-            role_perms = set(result.scalars().all())
-        return sorted(role_perms | direct)
+        if not db_user or not db_user.role_id:
+            return []
+        result = await db.execute(
+            select(Permission.codename)
+            .join(role_permission, Permission.id == role_permission.c.permission_id)
+            .where(role_permission.c.role_id == db_user.role_id)
+        )
+        return sorted(result.scalars().all())
 
     @staticmethod
     async def grant_permissions(db: AsyncSession, user_id: int, perm_codes: list[str]) -> None:
+        """v2: 授予权限（通过角色系统，将权限码添加到用户的角色）。
+
+        如果用户没有角色，自动创建一个自定义角色并关联。
+        """
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        from app.models.role import Role
+
         user = await UserService.get_by_id(db, user_id)
         if not user:
             raise NotFoundException(f"用户 ID={user_id} 不存在")
@@ -238,13 +237,30 @@ class UserService:
             if code not in existing_codes:
                 perm = Permission(codename=code, name=code)
                 db.add(perm)
-                perms.append(perm)
+                perm_results = await db.execute(
+                    select(Permission).where(Permission.codename == code)
+                )
+                new_perm = perm_results.scalar_one_or_none()
+                if new_perm:
+                    perms.append(new_perm)
         await db.flush()
 
+        if not user.role_id:
+            role = Role(
+                name=f"user_{user_id}",
+                name_cn=f"用户 {user_id} 专用角色",
+                description=f"用户 {user.username} 的自动生成角色",
+                is_system=False,
+            )
+            db.add(role)
+            await db.flush()
+            user.role_id = role.id
+
+        role_id = user.role_id
         for perm in perms:
             stmt = (
-                pg_insert(user_permission)
-                .values(user_id=user_id, permission_id=perm.id)
+                pg_insert(role_permission)
+                .values(role_id=role_id, permission_id=perm.id)
                 .on_conflict_do_nothing()
             )
             await db.execute(stmt)
@@ -252,16 +268,21 @@ class UserService:
 
     @staticmethod
     async def revoke_permissions(db: AsyncSession, user_id: int, perm_codes: list[str]) -> None:
+        """v2: 撤销权限（从用户的角色中移除权限码）。"""
         result = await db.execute(select(Permission).where(Permission.codename.in_(perm_codes)))
         perm_ids = [p.id for p in result.scalars().all()]
-        if perm_ids:
-            await db.execute(
-                delete(user_permission).where(
-                    user_permission.c.user_id == user_id,
-                    user_permission.c.permission_id.in_(perm_ids),
-                )
+
+        user = await UserService.get_by_id(db, user_id)
+        if not user or not user.role_id or not perm_ids:
+            return
+
+        await db.execute(
+            delete(role_permission).where(
+                role_permission.c.role_id == user.role_id,
+                role_permission.c.permission_id.in_(perm_ids),
             )
-            await db.commit()
+        )
+        await db.commit()
 
     @staticmethod
     async def init_default_permissions(db: AsyncSession) -> None:
@@ -322,7 +343,10 @@ class ResourceGroupService:
         page_size: int = 20,
         search: str | None = None,
     ) -> tuple[int, list[ResourceGroup]]:
-        query = select(ResourceGroup)
+        query = select(ResourceGroup).options(
+            selectinload(ResourceGroup.instances),
+            selectinload(ResourceGroup.user_groups),
+        )
         if search:
             query = query.where(
                 ResourceGroup.group_name.ilike(f"%{search}%")
@@ -368,10 +392,16 @@ class ResourceGroupService:
 
     @staticmethod
     async def get_member_count(db: AsyncSession, rg_id: int) -> int:
-        """v2: 返回直接成员数（不含用户组成员）。前端成员管理穿梭框仅显示直接成员。"""
-        result = await db.execute(
-            select(func.count())
-            .select_from(user_resource_group)
-            .where(user_resource_group.c.resource_group_id == rg_id)
+        """v2: 返回通过用户组关联的成员总数（去重）。"""
+        from app.models.role import group_resource_group, user_group_member
+
+        member_result = await db.execute(
+            select(func.count(func.distinct(user_group_member.c.user_id)))
+            .select_from(user_group_member)
+            .join(
+                group_resource_group,
+                user_group_member.c.group_id == group_resource_group.c.group_id,
+            )
+            .where(group_resource_group.c.resource_group_id == rg_id)
         )
-        return result.scalar_one()
+        return member_result.scalar_one()

@@ -1,13 +1,8 @@
 """
 用户、权限组、资源组相关模型。
 
-v2 变更：
-- 新增 role_id（单角色）、manager_id（直属上级）
-- 新增 employee_id / department / title（LDAP/OAuth 同步字段）
-- Users 新增 user_groups 关系（通过 user_group_member）
-- ResourceGroup 新增 user_groups 关系（通过 group_resource_group）
-- 保留 user_resource_group 向后兼容（Phase 3 后移除）
-- 保留 user_permission 向后兼容（Phase 3 后移除）
+Phase 4 已完成：移除 user_permission 和 user_resource_group 旧关联表。
+权限通过 Role → role_permission 获取，用户通过 UserGroup → ResourceGroup 获取资源组。
 """
 
 from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, String, Table
@@ -20,13 +15,6 @@ instance_resource_group = Table(
     "instance_resource_group",
     Base.metadata,
     Column("instance_id", Integer, ForeignKey("sql_instance.id", ondelete="CASCADE")),
-    Column("resource_group_id", Integer, ForeignKey("resource_group.id", ondelete="CASCADE")),
-)
-
-user_resource_group = Table(
-    "user_resource_group",
-    Base.metadata,
-    Column("user_id", Integer, ForeignKey("sql_users.id", ondelete="CASCADE")),
     Column("resource_group_id", Integer, ForeignKey("resource_group.id", ondelete="CASCADE")),
 )
 
@@ -75,9 +63,6 @@ class Users(BaseModel):
     title: Mapped[str] = mapped_column(String(100), default="", comment="职位/岗位")
 
     # ── relationships ────────────────────────────────────────────
-    resource_groups: Mapped[list["ResourceGroup"]] = relationship(
-        "ResourceGroup", secondary=user_resource_group, back_populates="users"
-    )
     user_groups: Mapped[list["UserGroup"]] = relationship(  # noqa: F821
         "UserGroup", secondary="user_group_member", back_populates="members"
     )
@@ -96,9 +81,8 @@ class ResourceGroup(BaseModel):
     """
     资源组：隔离不同团队对实例的访问权限。
 
-    v2 变更：资源组只包含实例（不再直接包含用户）。
+    v2：资源组只包含实例，不再直接包含用户。
     用户通过 用户组 → 资源组 → 实例 链路获得访问权。
-    保留 users 关系向后兼容（Phase 3 后移除 user_resource_group）。
     """
 
     __tablename__ = "resource_group"
@@ -115,10 +99,6 @@ class ResourceGroup(BaseModel):
     instances: Mapped[list["Instance"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "Instance", secondary=instance_resource_group, back_populates="resource_groups"
     )
-    # 向后兼容：Phase 3 后移除 user_resource_group，只保留 group_resource_group
-    users: Mapped[list[Users]] = relationship(
-        Users, secondary=user_resource_group, back_populates="resource_groups"
-    )
     user_groups: Mapped[list["UserGroup"]] = relationship(  # noqa: F821
         "UserGroup", secondary="group_resource_group", back_populates="resource_groups"
     )
@@ -127,11 +107,7 @@ class ResourceGroup(BaseModel):
 
 
 class Permission(BaseModel):
-    """
-    自定义权限表（继承 Archery 的权限定义）。
-    v2：权限通过 Role → Permission 关联，不再直绑用户。
-    保留 user_permission 向后兼容（Phase 3 后移除）。
-    """
+    """自定义权限表。v2：权限通过 Role → Permission 关联（role_permission）。"""
 
     __tablename__ = "permission"
 
@@ -140,11 +116,3 @@ class Permission(BaseModel):
         String(100), unique=True, nullable=False, comment="权限码"
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False, comment="权限说明")
-
-
-user_permission = Table(
-    "user_permission",
-    Base.metadata,
-    Column("user_id", Integer, ForeignKey("sql_users.id", ondelete="CASCADE")),
-    Column("permission_id", Integer, ForeignKey("permission.id", ondelete="CASCADE")),
-)

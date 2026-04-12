@@ -87,7 +87,12 @@ export default function UserManagement() {
       if (r.is_superuser) return <Tag color="red">超级管理员</Tag>
       return name ? <Tag color="blue">{name}</Tag> : <Tag>普通用户</Tag>
     }},
-    { title: '认证', dataIndex: 'auth_type', width: 90, render: t => <Tag>{t}</Tag> },
+    { title: '用户组', dataIndex: 'user_groups', width: 180, render: (ugs: any[]) => {
+      if (!ugs || !ugs.length) return <Text type="secondary">—</Text>
+      return <Space wrap size={[4, 4]}>{ugs.map((ug: any) => (
+        <Tag key={ug.id} color="cyan" style={{ fontSize: 12 }}>{ug.name_cn || ug.name}</Tag>
+      ))}</Space>
+    }},
     { title: '部门', dataIndex: 'department', width: 100, render: v => v || <Text type="secondary">—</Text> },
     { title: '职位', dataIndex: 'title', width: 100, render: v => v || <Text type="secondary">—</Text> },
     { title: '状态', dataIndex: 'is_active', width: 80, render: (v, r) => <Switch checked={v} size="small" onChange={c => updateMut.mutate({ id: r.id, data: { is_active: c } })} /> },

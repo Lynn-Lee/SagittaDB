@@ -315,10 +315,21 @@ def get_user_accessible_instances(user):
 4. 审批流支持 `manager` / `user_group` / `role` 节点类型
 5. 前端菜单渲染改为基于角色权限码
 
-### Phase 4 — 清理旧表
+### Phase 4 — 清理旧表 ✅
 
-1. 废弃 `user_permission` 关联表
-2. 废弃 `user_resource_group` 关联表
+1. ~~废弃 `user_permission` 关联表~~ → 已删除表及所有代码引用
+2. ~~废弃 `user_resource_group` 关联表~~ → 已删除表及所有代码引用
+3. 权限获取改为仅通过 `role_permission`（`UserService.get_merged_permissions` 不再合并直接权限）
+4. 资源组访问改为仅通过 `UserGroup → group_resource_group`（移除了 `Users.resource_groups` 关系）
+5. `ResourceGroupService.get_member_count` 改为通过用户组计算去重成员数
+6. `grant_permissions` 改为操作用户角色的 `role_permission`（无角色时自动创建专用角色）
+7. 前端资源组管理改为展示关联数据库实例 + 用户组穿梭框（移除直接成员穿梭框）
+8. 前端用户管理新增用户组列（显示为 Tag）
+9. 前端用户组管理白屏修复（补充 Modal 组件导入）
+10. 用户列表/详情 API 返回 `user_groups` 改为 `{id, name, name_cn}` 对象列表
+11. 资源组列表 API 新增 `instances` 字段（关联的数据库实例列表）
+12. `UserCreate`/`UserUpdate` 移除 `resource_group_ids`（资源组通过用户组关联）
+13. Alembic 迁移 `0009_drop_legacy_tables.py`
 
 ---
 
@@ -334,4 +345,4 @@ def get_user_accessible_instances(user):
 
 ---
 
-*SagittaDB 矢准数据 · 授权体系重设计方案 v2 · 2026-04-12*
+*SagittaDB 矢准数据 · 授权体系重设计方案 v2 · 2026-04-13 · 全部 Phase 已完成*

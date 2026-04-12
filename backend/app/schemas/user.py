@@ -14,7 +14,6 @@ class UserCreate(BaseModel):
     email: str = ""
     phone: str = ""
     is_superuser: bool = False
-    resource_group_ids: list[int] = []
     role_id: int | None = None
     manager_id: int | None = None
     employee_id: str = ""
@@ -45,7 +44,6 @@ class UserUpdate(BaseModel):
     phone: str | None = None
     is_active: bool | None = None
     is_superuser: bool | None = None
-    resource_group_ids: list[int] | None = None
     role_id: int | None = None
     manager_id: int | None = None
     employee_id: str | None = None
@@ -65,7 +63,7 @@ class UserResponse(BaseModel):
     auth_type: str
     totp_enabled: bool
     tenant_id: int
-    resource_groups: list[int] = []
+    user_groups: list[int] = []
 
     model_config = {"from_attributes": True}
 

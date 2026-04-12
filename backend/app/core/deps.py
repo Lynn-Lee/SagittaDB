@@ -60,11 +60,10 @@ async def current_user(
     from app.models.role import Role, UserGroup
     from app.models.user import Users
 
-    # 加载用户 + 角色(含权限码) + 用户组
+    # 加载用户 + 角色(含权限码) + 用户组(含资源组)
     result = await db.execute(
         select(Users)
         .options(
-            selectinload(Users.resource_groups),
             selectinload(Users.user_groups).selectinload(UserGroup.resource_groups),
             selectinload(Users.role).selectinload(Role.permissions),
         )
@@ -77,22 +76,16 @@ async def current_user(
     if payload.get("requires_2fa") and not payload.get("2fa_verified"):
         raise HTTPException(status_code=403, detail="请先完成二步验证")
 
-    # ── v2 权限获取：角色权限 + 用户直接权限（向后兼容）──
-    from app.services.user import UserService
-
+    # ── v2 权限获取：仅角色权限（不再查 user_permission）──
     role_perms: set[str] = set()
     if db_user.role and db_user.role.permissions:
         role_perms = {p.codename for p in db_user.role.permissions}
-    direct_perms = await UserService.get_permissions(db, db_user.id)
-    all_perms = role_perms | set(direct_perms)
 
-    # ── v2 资源组获取：用户直接关联 + 用户组关联 ──
-    direct_rg_ids = {rg.id for rg in db_user.resource_groups}
+    # ── v2 资源组获取：仅通过用户组关联（不再查 user_resource_group）──
     group_rg_ids: set[int] = set()
     for ug in db_user.user_groups:
         for rg in ug.resource_groups:
             group_rg_ids.add(rg.id)
-    all_rg_ids = direct_rg_ids | group_rg_ids
 
     return {
         "id": db_user.id,
@@ -100,11 +93,11 @@ async def current_user(
         "display_name": db_user.display_name,
         "is_superuser": db_user.is_superuser,
         "is_active": db_user.is_active,
-        "permissions": list(all_perms),
+        "permissions": list(role_perms),
         "role": db_user.role.name if db_user.role else None,
         "role_id": db_user.role_id,
         "manager_id": db_user.manager_id,
-        "resource_groups": list(all_rg_ids),
+        "resource_groups": list(group_rg_ids),
         "user_groups": [ug.id for ug in db_user.user_groups],
         "tenant_id": db_user.tenant_id,
     }

@@ -43,9 +43,9 @@
 | 多级审批流 | 管理员自定义多节点审批流 + 前端管理页面 | ✅ | 100% |
 | 数据库权限管控 | is_active 启停控制、普通用户不可见禁用库、管理员标灰"已禁用" | ✅ | 100% |
 | Bug 修复 | MySQL DictCursor 修复、PG 表缺失修复、前端下拉框截断修复 | ✅ | 100% |
-| 授权体系 v2 | 角色系统（superadmin/dba/dba_group/developer）、用户组、资源组职责拆分、四级授权粒度、直属上级审批、短信验证码 | 🔧 | 85% |
+| 授权体系 v2 | 角色系统（superadmin/dba/dba_group/developer）、用户组、资源组职责拆分、四级授权粒度、直属上级审批、短信验证码 | ✅ | 100% |
 
-**总体完成度：100%（v1.0-GA），v2 授权体系重设计开发中（85%）**
+**总体完成度：100%（v1.0-GA），v2 授权体系重设计已完成（100%，Phase 4 旧表清理已完成）**
 
 ---
 
@@ -421,7 +421,7 @@
 
 ---
 
-## 八、开发中：授权体系 v2 重设计（85%）
+## 八、授权体系 v2 重设计（100% — 已完成）
 
 > 详细方案请见 [sagittadba_auth_redesign_v2.md](sagittadba_auth_redesign_v2.md)
 
@@ -438,36 +438,32 @@
 | 认证方式 | 密码 + OTP + LDAP + OAuth×4 | + 短信验证码 |
 | 资源组 | 用户 + 实例多对多 | 仅实例（用户通过用户组间接关联） |
 
-### 已完成（Phase 1）
+### 已完成（全部 Phase）
 
 | 子项 | 状态 | 说明 |
 |---|---|---|
 | Role + UserGroup 模型 | ✅ | `models/role.py` — Role / UserGroup / 3 关联表 |
 | Users v2 字段 | ✅ | role_id / manager_id / employee_id / department / title |
-| Alembic 迁移 0006-0008 | ✅ | 新建表 + 扩展字段 + QueryPrivilege / ApprovalFlowNode |
+| Alembic 迁移 0006-0009 | ✅ | 新建表 + 扩展字段 + v2 扩展 + 旧表清理 |
 | 内置角色种子数据 | ✅ | superadmin / dba / dba_group / developer |
-| Role + UserGroup CRUD API | ✅ | /roles/ + /user-groups/ 全套路由 |
-| 权限链路升级 | ✅ | current_user 合并角色权限 + 用户组资源组 |
-| 资源组访问链路 | ✅ | /me/ 返回完整资源组，审批 group 类型含用户组链路 |
+| Role + UserGroup CRUD API | ✅ | /roles/ + /user-groups/ + 资源组用户组关联 |
+| 权限链路升级 | ✅ | current_user 仅读角色权限（不再合并 user_permission） |
+| 资源组访问链路 | ✅ | 仅通过用户组（不再查 user_resource_group） |
 | QueryPrivilege 扩展 | ✅ | user_group_id / scope_type / resource_group_id |
-| ApprovalFlowNode 扩展 | ✅ | approver_group_id / approver_role_id / manager 类型 |
+| 查询权限安全修复 | ✅ | _has_db_priv/_has_table_priv 检查用户组+资源组范围授权 |
+| ApprovalFlowNode 扩展 | ✅ | 6种审批人类型全部实现（manager/user_group/role） |
 | 短信验证码认证 | ✅ | 阿里云/腾讯云/自定义 HTTP，Redis 限流 |
 | LDAP/OAuth 字段同步 | ✅ | employee_id / department / title / manager_id |
 | 前端角色管理页面 | ✅ | RoleManagement.tsx |
-| 前端用户组管理页面 | ✅ | UserGroupManagement.tsx |
+| 前端用户组管理页面 | ✅ | UserGroupManagement.tsx（白屏修复：补充 Modal 导入） |
 | 前端路由 + 菜单 | ✅ | App.tsx Route + MainLayout.tsx NAV_ITEMS |
-| 用户管理 v2 字段 | ✅ | 角色选择 / 用户组 / 直属上级 / 工号 / 部门 / 职位 |
-| 资源组用户组关联 | ✅ | 前端穿梭框 + 后端 API |
-| 后端 ruff check | ✅ | 全部通过 |
-
-### 待完成（Phase 2-4）
-
-| 子项 | 状态 | 说明 |
-|---|---|---|
-| 数据迁移脚本 | 📋 | user_permission → Role，user_resource_group → UserGroup |
-| 切换逻辑 | 📋 | require_perm 读取角色权限，资源组路径改用户组→资源组→实例 |
-| 清理旧表 | 📋 | user_permission / user_resource_group |
-| Docker 集成测试 | 📋 | 端到端验证 |
+| 用户管理 v2 字段 | ✅ | 角色选择 / 用户组（显示名称 Tag）/ 直属上级 / 工号 / 部门 / 职位 |
+| 资源组管理 v2 | ✅ | 展示关联数据库实例列表 + 用户组穿梭框，移除直接成员穿梭框 |
+| 资源组用户组关联 | ✅ | 前端穿梭框 + 后端 GET/PUT API |
+| 数据迁移脚本 | ✅ | scripts/migrate_v1_to_v2.py（dry-run + 实际运行验证） |
+| 权限 API | ✅ | get_merged_permissions 仅查 role_permission（grant/revoke 操作角色权限） |
+| Phase 4 旧表清理 | ✅ | 删除 user_permission / user_resource_group 表及所有代码引用 |
+| Docker 集成测试 | ✅ | 迁移+API+前端 全部通过 |
 
 ### 四个内置角色
 
@@ -478,13 +474,13 @@
 | `dba_group` | 资源组 DBA | 运维权限，实例范围限于资源组 |
 | `developer` | 开发工程师 | 工单提交 + 查询申请，需授权才能查库 |
 
-### 迁移计划
+### 迁移计划（已全部完成）
 
 1. **Phase 1**（已完成）：新增表 + 扩展字段 + 短信认证 + LDAP 同步 + 前端页面
-2. **Phase 2**：数据迁移脚本（user_permission → Role，user_resource_group → UserGroup + ResourceGroup）
-3. **Phase 3**：切换逻辑（require_perm 读角色权限，资源组路径改用户组→资源组→实例）
-4. **Phase 4**：清理旧表（user_permission / user_resource_group）
+2. **Phase 2**（已完成）：数据迁移脚本（user_permission → Role，user_resource_group → UserGroup + ResourceGroup）
+3. **Phase 3**（已完成）：切换逻辑（require_perm 读角色权限，资源组路径改用户组→资源组→实例）
+4. **Phase 4**（已完成）：清理旧表（user_permission / user_resource_group）+ 前端资源组展示实例 + 用户组/用户管理修复
 
 ---
 
-*文档最后更新：2026-04-12 · SagittaDB v1.0-GA + v2 授权体系重设计开发中（85%）*
+*文档最后更新：2026-04-13 · SagittaDB v1.0-GA + v2 授权体系重设计已完成（100%）*

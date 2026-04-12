@@ -60,8 +60,9 @@ async def list_users(
                 "is_superuser": u.is_superuser,
                 "auth_type": u.auth_type,
                 "totp_enabled": u.totp_enabled,
-                "resource_groups": [rg.id for rg in u.resource_groups],
-                "user_groups": [ug.id for ug in u.user_groups],
+                "user_groups": [
+                    {"id": ug.id, "name": ug.name, "name_cn": ug.name_cn} for ug in u.user_groups
+                ],
                 "role_id": u.role_id,
                 "role_name": u.role.name_cn
                 if u.role and u.role.name_cn
@@ -115,8 +116,9 @@ async def get_user(
         "employee_id": user.employee_id,
         "department": user.department,
         "title": user.title,
-        "resource_groups": [rg.id for rg in user.resource_groups],
-        "user_groups": [ug.id for ug in user.user_groups],
+        "user_groups": [
+            {"id": ug.id, "name": ug.name, "name_cn": ug.name_cn} for ug in user.user_groups
+        ],
         "permissions": permissions,
         "tenant_id": user.tenant_id,
     }
@@ -427,6 +429,21 @@ async def list_resource_groups(
     for rg in items:
         mc = await ResourceGroupService.get_member_count(db, rg.id)
         ugs = await UserGroupService.get_user_groups_for_resource_group(db, rg.id)
+        instances = (
+            [
+                {
+                    "id": inst.id,
+                    "instance_name": inst.instance_name,
+                    "db_type": inst.db_type,
+                    "host": inst.host,
+                    "port": inst.port,
+                    "is_active": inst.is_active,
+                }
+                for inst in rg.instances
+            ]
+            if rg.instances
+            else []
+        )
         result.append(
             {
                 "id": rg.id,
@@ -438,6 +455,7 @@ async def list_resource_groups(
                 "tenant_id": rg.tenant_id,
                 "member_count": mc,
                 "user_group_count": len(ugs),
+                "instances": instances,
             }
         )
     return {"total": total, "page": page, "page_size": page_size, "items": result}
@@ -478,20 +496,27 @@ async def delete_resource_group(
     return {"status": 0, "msg": "资源组已删除"}
 
 
-@router.get("/resource-groups/{rg_id}/members/", summary="资源组成员列表")
+@router.get("/resource-groups/{rg_id}/members/", summary="资源组成员列表（通过用户组）")
 async def list_rg_members(
     rg_id: int,
     db: AsyncSession = Depends(get_db),
     _user=Depends(current_user),
 ):
+    """v2: 资源组成员通过用户组关联获取，不再直接查 user_resource_group。"""
     from sqlalchemy import select
 
-    from app.models.user import Users, user_resource_group
+    from app.models.role import group_resource_group, user_group_member
+    from app.models.user import Users
 
     result = await db.execute(
         select(Users)
-        .join(user_resource_group, Users.id == user_resource_group.c.user_id)
-        .where(user_resource_group.c.resource_group_id == rg_id)
+        .join(user_group_member, Users.id == user_group_member.c.user_id)
+        .join(
+            group_resource_group,
+            user_group_member.c.group_id == group_resource_group.c.group_id,
+        )
+        .where(group_resource_group.c.resource_group_id == rg_id)
+        .distinct()
     )
     members = result.scalars().all()
     return {
@@ -506,36 +531,20 @@ class MemberUpdateRequest(BaseModel):
     user_ids: list[int]
 
 
-@router.post("/resource-groups/{rg_id}/members/", summary="更新资源组成员")
+@router.post(
+    "/resource-groups/{rg_id}/members/", summary="更新资源组成员（已废弃，请使用用户组关联）"
+)
 async def update_rg_members(
     rg_id: int,
     data: MemberUpdateRequest,
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_perm("resource_group_manage")),
 ):
-    """全量更新：传入的 user_ids 即为最终成员列表。"""
-    from sqlalchemy import delete, select
-
-    from app.models.user import ResourceGroup, user_resource_group
-
-    rg_result = await db.execute(select(ResourceGroup).where(ResourceGroup.id == rg_id))
-    rg = rg_result.scalar_one_or_none()
-    if not rg:
-        from fastapi import HTTPException
-
-        raise HTTPException(404, "资源组不存在")
-
-    # 清除现有成员
-    await db.execute(
-        delete(user_resource_group).where(user_resource_group.c.resource_group_id == rg_id)
-    )
-
-    # 插入新成员
-    for uid in data.user_ids:
-        await db.execute(user_resource_group.insert().values(user_id=uid, resource_group_id=rg_id))
-
-    await db.commit()
-    return {"status": 0, "msg": f"资源组成员已更新，共 {len(data.user_ids)} 人"}
+    """v2: 资源组成员管理已迁移到用户组体系，此端点仅为前端兼容保留空操作。"""
+    return {
+        "status": 0,
+        "msg": "资源组成员管理已迁移到用户组体系，请使用 PUT /resource-groups/{id}/user-groups/",
+    }
 
 
 @router.get("/resource-groups/{rg_id}/user-groups/", summary="资源组关联的用户组")
