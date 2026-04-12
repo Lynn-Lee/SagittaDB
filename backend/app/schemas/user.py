@@ -45,6 +45,7 @@ class UserUpdate(BaseModel):
     employee_id: str | None = None
     department: str | None = None
     title: str | None = None
+    user_group_ids: list[int] | None = None
 
 
 class UserResponse(BaseModel):

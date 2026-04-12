@@ -2,6 +2,7 @@
 查询权限校验与管理服务（Sprint 2）。
 使用 sqlglot 提取表引用，替代 Archery 1.x 对 goInception 的依赖（修复 P0-3）。
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,7 +36,7 @@ class QueryPrivService:
         查询权限三层校验：
           L1: 超管 / 拥有 query_all_instances 权限 → 直接放行
           L2: 资源组隔离（实例必须在用户资源组内）
-          L3: 库/表级授权记录
+          L3: 库/表级授权记录（含用户组授权、资源组范围授权）
 
         Returns:
             (passed, reason)
@@ -54,30 +55,30 @@ class QueryPrivService:
         if not any(rid in instance_rg_ids for rid in user_rg_ids):
             return False, "实例不在你的资源组内"
 
+        # 用户所属组ID列表
+        user_group_ids: list[int] = user.get("user_groups", [])
+
         # L3: 用 sqlglot 提取表引用，校验库/表级权限
         table_refs = extract_table_refs(sql, db_name, instance.db_type)
         if not table_refs:
-            # 无法解析表引用时，检查是否有库级权限
             has_db_priv = await QueryPrivService._has_db_priv(
-                db, user_id, instance.id, db_name
+                db, user_id, instance.id, db_name, user_group_ids, user_rg_ids
             )
             if has_db_priv:
                 return True, "db_privilege"
             return False, f"没有数据库 {db_name} 的查询权限，请申请后重试"
 
-        # 检查每张表的权限
         for ref in table_refs:
             schema = ref.get("schema", db_name) or db_name
             table = ref.get("name", "")
             if not table:
                 continue
             has_priv = await QueryPrivService._has_table_priv(
-                db, user_id, instance.id, schema, table
+                db, user_id, instance.id, schema, table, user_group_ids, user_rg_ids
             )
             if not has_priv:
-                # 降级：检查库级权限
                 has_db = await QueryPrivService._has_db_priv(
-                    db, user_id, instance.id, schema
+                    db, user_id, instance.id, schema, user_group_ids, user_rg_ids
                 )
                 if not has_db:
                     return False, f"没有表 {schema}.{table} 的查询权限，请申请后重试"
@@ -86,21 +87,56 @@ class QueryPrivService:
 
     @staticmethod
     async def _has_db_priv(
-        db: AsyncSession, user_id: int, instance_id: int, db_name: str
+        db: AsyncSession,
+        user_id: int,
+        instance_id: int,
+        db_name: str,
+        user_group_ids: list[int] | None = None,
+        user_rg_ids: list[int] | None = None,
     ) -> bool:
+        """v2: 检查库级权限，含用户直接授权、用户组授权、资源组范围授权。"""
         today = date.today()
-        result = await db.execute(
-            select(QueryPrivilege).where(
+        conditions = []
+
+        # 条件1: 用户直接授权
+        user_cond = and_(
+            QueryPrivilege.user_id == user_id,
+            QueryPrivilege.instance_id == instance_id,
+            QueryPrivilege.db_name == db_name,
+            QueryPrivilege.priv_type == 1,
+            QueryPrivilege.valid_date >= today,
+            QueryPrivilege.is_deleted == 0,
+        )
+        conditions.append(user_cond)
+
+        # 条件2: 用户组授权
+        if user_group_ids:
+            conditions.append(
                 and_(
-                    QueryPrivilege.user_id == user_id,
+                    QueryPrivilege.user_group_id.in_(user_group_ids),
                     QueryPrivilege.instance_id == instance_id,
                     QueryPrivilege.db_name == db_name,
-                    QueryPrivilege.priv_type == 1,  # DATABASE 级
+                    QueryPrivilege.priv_type == 1,
                     QueryPrivilege.valid_date >= today,
                     QueryPrivilege.is_deleted == 0,
                 )
             )
-        )
+
+        # 条件3: 资源组范围授权（scope_type=resource_group）
+        if user_rg_ids:
+            conditions.append(
+                and_(
+                    QueryPrivilege.resource_group_id.in_(user_rg_ids),
+                    QueryPrivilege.scope_type == "resource_group",
+                    QueryPrivilege.db_name == db_name,
+                    QueryPrivilege.valid_date >= today,
+                    QueryPrivilege.is_deleted == 0,
+                )
+            )
+
+        from sqlalchemy import or_
+
+        result = await db.execute(select(QueryPrivilege).where(or_(*conditions)))
         return result.scalar_one_or_none() is not None
 
     @staticmethod
@@ -110,21 +146,52 @@ class QueryPrivService:
         instance_id: int,
         db_name: str,
         table_name: str,
+        user_group_ids: list[int] | None = None,
+        user_rg_ids: list[int] | None = None,
     ) -> bool:
+        """v2: 检查表级权限，含用户直接授权、用户组授权、资源组范围授权。"""
         today = date.today()
-        result = await db.execute(
-            select(QueryPrivilege).where(
+        conditions = []
+
+        user_cond = and_(
+            QueryPrivilege.user_id == user_id,
+            QueryPrivilege.instance_id == instance_id,
+            QueryPrivilege.db_name == db_name,
+            QueryPrivilege.table_name == table_name,
+            QueryPrivilege.priv_type == 2,
+            QueryPrivilege.valid_date >= today,
+            QueryPrivilege.is_deleted == 0,
+        )
+        conditions.append(user_cond)
+
+        if user_group_ids:
+            conditions.append(
                 and_(
-                    QueryPrivilege.user_id == user_id,
+                    QueryPrivilege.user_group_id.in_(user_group_ids),
                     QueryPrivilege.instance_id == instance_id,
                     QueryPrivilege.db_name == db_name,
                     QueryPrivilege.table_name == table_name,
-                    QueryPrivilege.priv_type == 2,  # TABLE 级
+                    QueryPrivilege.priv_type == 2,
                     QueryPrivilege.valid_date >= today,
                     QueryPrivilege.is_deleted == 0,
                 )
             )
-        )
+
+        if user_rg_ids:
+            conditions.append(
+                and_(
+                    QueryPrivilege.resource_group_id.in_(user_rg_ids),
+                    QueryPrivilege.scope_type == "resource_group",
+                    QueryPrivilege.db_name == db_name,
+                    (QueryPrivilege.table_name == table_name) | QueryPrivilege.table_name.is_(None),
+                    QueryPrivilege.valid_date >= today,
+                    QueryPrivilege.is_deleted == 0,
+                )
+            )
+
+        from sqlalchemy import or_
+
+        result = await db.execute(select(QueryPrivilege).where(or_(*conditions)))
         return result.scalar_one_or_none() is not None
 
     # ── 权限记录管理 ──────────────────────────────────────────
@@ -243,12 +310,8 @@ class QueryPrivService:
         return apply
 
     @staticmethod
-    async def revoke_privilege(
-        db: AsyncSession, priv_id: int, operator: dict
-    ) -> None:
-        result = await db.execute(
-            select(QueryPrivilege).where(QueryPrivilege.id == priv_id)
-        )
+    async def revoke_privilege(db: AsyncSession, priv_id: int, operator: dict) -> None:
+        result = await db.execute(select(QueryPrivilege).where(QueryPrivilege.id == priv_id))
         priv = result.scalar_one_or_none()
         if not priv:
             raise NotFoundException(f"权限 ID={priv_id} 不存在")

@@ -132,10 +132,11 @@ class UserService:
             user.is_active = data.is_active
         if data.is_superuser is not None:
             user.is_superuser = data.is_superuser
+        # v2 字段：支持显式清空（0 表示清空 role_id/manager_id）
         if data.role_id is not None:
-            user.role_id = data.role_id
+            user.role_id = data.role_id if data.role_id else None
         if data.manager_id is not None:
-            user.manager_id = data.manager_id
+            user.manager_id = data.manager_id if data.manager_id else None
         if data.employee_id is not None:
             user.employee_id = data.employee_id
         if data.department is not None:
@@ -145,6 +146,13 @@ class UserService:
         if data.resource_group_ids is not None:
             rgs = await ResourceGroupService.get_by_ids(db, data.resource_group_ids)
             user.resource_groups = rgs
+        if data.user_group_ids is not None:
+            from app.models.role import UserGroup
+
+            ugs_result = await db.execute(
+                select(UserGroup).where(UserGroup.id.in_(data.user_group_ids))
+            )
+            user.user_groups = list(ugs_result.scalars().all())
 
         await db.commit()
         user = await UserService.get_by_id(db, user.id)

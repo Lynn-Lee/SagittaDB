@@ -331,6 +331,53 @@ class AuditService:
                     code=403,
                 )
 
+        elif approver_type == "manager":
+            # 直属上级审批
+            applicant_id = node.get("applicant_id")
+            if applicant_id:
+                from app.models.user import User as UserModel
+
+                applicant = await db.execute(select(UserModel).where(UserModel.id == applicant_id))
+                applicant_obj = applicant.scalar_one_or_none()
+                if not applicant_obj or applicant_obj.manager_id != operator.get("id"):
+                    raise AppException(
+                        f"您不是申请人「{node.get('applicant_name', '')}」的直属上级",
+                        code=403,
+                    )
+            else:
+                raise AppException("无法确认申请人，无法验证直属上级审批权限", code=403)
+
+        elif approver_type == "user_group":
+            # 用户组成员审批
+            approver_group_id = node.get("approver_group_id")
+            if approver_group_id:
+                from app.models.role import user_group_member
+
+                result = await db.execute(
+                    select(user_group_member)
+                    .where(user_group_member.c.group_id == approver_group_id)
+                    .where(user_group_member.c.user_id == operator.get("id"))
+                )
+                if not result.first():
+                    raise AppException(
+                        f"您不在节点「{node.get('node_name', '')}」要求的用户组中",
+                        code=403,
+                    )
+            else:
+                raise AppException("审批节点未指定用户组", code=403)
+
+        elif approver_type == "role":
+            # 角色持有者审批
+            approver_role_id = node.get("approver_role_id")
+            if approver_role_id:
+                if operator.get("role_id") != approver_role_id:
+                    raise AppException(
+                        f"您没有节点「{node.get('node_name', '')}」要求的角色",
+                        code=403,
+                    )
+            else:
+                raise AppException("审批节点未指定角色", code=403)
+
     # ── 待审批工单（按节点权限过滤）────────────────────────────
 
     @staticmethod
