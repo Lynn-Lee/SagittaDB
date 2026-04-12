@@ -1,7 +1,8 @@
 # v2-lite 权限体系本地验证清单
 
 > 适用版本：SagittaDB v1.0-GA + v2-lite auth  
-> 验证目标：确认角色权限、资源范围、查询授权、审批流和前端菜单行为与 v2-lite 设计一致。
+> 验证目标：确认角色权限、资源范围、查询授权、审批流和前端菜单行为与 v2-lite 设计一致。  
+> 说明：完整逐项验收版请见 [v2_lite_auth_full_validation.md](./v2_lite_auth_full_validation.md)。
 
 ## 一、环境准备
 
@@ -23,6 +24,13 @@ curl -X POST http://localhost:8000/api/v1/system/init/
 ### 3. 默认账号
 
 - `admin / Admin@2024!`
+
+### 4. 本轮 UI 口径
+
+- 浏览器标题显示为 `矢 准 数 据`
+- 资源组弹窗只保留“关联数据库实例 / 关联用户组 / 状态”
+- 用户组编辑时不可继续关联停用资源组
+- 数据库类型显示统一为 `MySQL / PostgreSQL / Oracle / TiDB / Doris / ClickHouse / MongoDB / Cassandra / Redis / Elasticsearch / OpenSearch`
 
 ---
 
@@ -117,6 +125,19 @@ curl -X POST http://localhost:8000/api/v1/system/init/
 
 - 组外实例访问被拒绝
 - 组内实例操作正常
+
+### TC-LITE-005A 停用资源组不能继续被用户组关联
+
+步骤：
+
+1. 使用 `admin` 将 `rg_dev` 状态切换为停用。
+2. 进入“用户组管理”，编辑任一用户组。
+3. 打开“关联资源组”选择框。
+
+预期：
+
+- `rg_dev` 不再出现在可选资源组列表中
+- 若某用户组历史上已关联 `rg_dev`，列表列仍可见，并带“已停用”提示
 
 ---
 
@@ -302,3 +323,5 @@ curl -X POST http://localhost:8000/api/v1/query/access-check/ \
 - 查询拒绝能定位层级
 - 审批流只支持 `users / manager / any_reviewer`
 - `dba_group` 不具备全局实例能力
+- 停用资源组不能继续被用户组新关联
+- 浏览器标题和数据库类型显示名符合当前 UI 规范

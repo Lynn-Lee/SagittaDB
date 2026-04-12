@@ -1,0 +1,488 @@
+# v2-lite 权限体系完整验证文档
+
+> 适用版本：SagittaDB v1.0-GA + v2-lite auth  
+> 文档日期：2026-04-13  
+> 目标：覆盖角色权限、菜单显示、用户组/资源组关系、状态变更、查询授权、审批流、监控范围与权限排查的完整人工验收。
+
+## 一、验证范围
+
+本轮文档覆盖以下能力：
+
+- 角色与权限码驱动的菜单显示
+- `UserGroup -> ResourceGroup -> Instance` 资源范围链路
+- 资源组与用户组的创建、编辑、停用约束
+- 查询权限的库级/表级授权与拒绝排查
+- 审批流首发 3 种节点类型
+- `dba_group` 的资源范围限制
+- 停用状态对权限链路的影响
+- 前端 UI 口径一致性
+
+## 二、环境要求
+
+### 1. 启动环境
+
+```bash
+docker compose up -d
+docker compose exec backend alembic upgrade head
+curl -X POST http://localhost:8000/api/v1/system/init/
+```
+
+### 2. 访问地址
+
+- 前端：`http://localhost`
+- 后端 OpenAPI：`http://localhost:8000/docs`
+- Flower：`http://localhost:5555`
+- Grafana：`http://localhost:3000`
+
+### 3. 默认管理员
+
+- `admin / Admin@2024!`
+
+### 4. 已通过的基础校验
+
+- `cd frontend && npm run typecheck`
+- `cd backend && python3 -m compileall app`
+- `cd backend && ./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py`
+
+## 三、建议准备的测试数据
+
+建议提前准备这些对象：
+
+- 用户：
+  - `admin`：超级管理员
+  - `dev_user`：角色为 `developer`
+  - `group_dba_user`：角色为 `dba_group`
+  - `review_user`：具备 `query_review`
+  - `manager_user`：作为 `dev_user` 的直属上级
+- 用户组：
+  - `ug_dev`
+  - `ug_dba_group`
+- 资源组：
+  - `rg_dev`
+  - `rg_ops`
+- 实例：
+  - `inst_dev_mysql`
+  - `inst_ops_pg`
+- 数据库：
+  - `app_db`
+  - `audit_db`
+- 表：
+  - `app_db.orders`
+  - `app_db.customers`
+
+推荐关系：
+
+- `dev_user -> ug_dev`
+- `group_dba_user -> ug_dba_group`
+- `dev_user.manager_id -> manager_user`
+- `ug_dev -> rg_dev`
+- `ug_dba_group -> rg_ops`
+- `rg_dev -> inst_dev_mysql`
+- `rg_ops -> inst_ops_pg`
+
+## 四、UI 与品牌口径验证
+
+### TC-AUTH-001 浏览器标题
+
+步骤：
+
+1. 打开前端首页。
+2. 观察浏览器标签页标题。
+
+预期：
+
+- 标题显示为 `矢 准 数 据`
+
+### TC-AUTH-002 数据库类型显示名统一
+
+步骤：
+
+1. 进入实例管理、资源组管理、在线查询、查询权限、工单提交等页面。
+2. 查看实例下拉框或实例标签。
+
+预期：
+
+- 不再出现 `MYSQL / PGSQL / ORACLE / TIDB / DORIS` 这类全大写
+- 应统一显示为：
+  - `MySQL`
+  - `PostgreSQL`
+  - `Oracle`
+  - `TiDB`
+  - `Doris`
+  - `ClickHouse`
+  - `MongoDB`
+  - `Cassandra`
+  - `Redis`
+  - `Elasticsearch`
+  - `OpenSearch`
+  - `MSSQL`
+
+### TC-AUTH-003 资源组列表布局
+
+步骤：
+
+1. 打开“系统管理 -> 资源组管理”。
+2. 观察资源组、数据库实例、关联用户组、状态、操作五列布局。
+
+预期：
+
+- 资源组名称列宽不再异常偏大
+- 数据库实例和关联用户组列有足够空间展示标签
+- 页面整体排版均衡，无明显挤压
+
+## 五、角色与菜单验证
+
+### TC-AUTH-010 developer 菜单裁剪
+
+步骤：
+
+1. 使用 `dev_user` 登录。
+2. 观察左侧菜单。
+
+预期：
+
+- 可见：`Dashboard`、`SQL 工单`、`在线查询`
+- 不可见：`可观测中心`、`运维工具`、`系统管理`、`审计日志`
+
+### TC-AUTH-011 页面级兜底
+
+步骤：
+
+1. 使用 `dev_user` 登录。
+2. 直接访问：
+   - `http://localhost/system/users`
+   - `http://localhost/monitor`
+
+预期：
+
+- 页面被拒绝访问
+- 不应进入实际业务页
+
+### TC-AUTH-012 dba_group 菜单能力
+
+步骤：
+
+1. 使用 `group_dba_user` 登录。
+2. 查看左侧菜单。
+
+预期：
+
+- 可见：`Dashboard`、`SQL 工单`、`在线查询`、`可观测中心`、`运维工具`、`审计日志`
+- 不可见超管专属系统配置能力
+
+## 六、资源组与用户组管理验证
+
+### TC-AUTH-020 创建资源组
+
+步骤：
+
+1. 使用 `admin` 进入“系统管理 -> 资源组管理”。
+2. 点击“新建资源组”。
+3. 填写：
+   - 资源组标识
+   - 中文名称
+   - 关联数据库实例
+   - 关联用户组
+4. 保存。
+
+预期：
+
+- 创建成功
+- 列表中能看到资源组名称、实例标签、关联用户组标签
+
+### TC-AUTH-021 资源组弹窗字段范围
+
+步骤：
+
+1. 打开资源组新建/编辑弹窗。
+
+预期：
+
+- 仅出现：
+  - 资源组标识
+  - 中文名称
+  - 关联数据库实例
+  - 关联用户组
+  - 状态（编辑时）
+- 不再出现资源组级 `Webhook`
+
+### TC-AUTH-022 用户组列表显示关联资源组
+
+步骤：
+
+1. 打开“系统管理 -> 用户组管理”。
+2. 观察列表列。
+
+预期：
+
+- 列表中存在“关联资源组”列
+- 已关联资源组以标签形式展示
+
+### TC-AUTH-023 用户组编辑只允许选择启用中的资源组
+
+步骤：
+
+1. 将 `rg_dev` 停用。
+2. 打开任一用户组编辑弹窗。
+3. 查看“关联资源组”穿梭框/列表。
+
+预期：
+
+- `rg_dev` 不再出现在可选资源组里
+
+### TC-AUTH-024 停用资源组的历史展示
+
+步骤：
+
+1. 让某用户组先关联 `rg_dev`。
+2. 再将 `rg_dev` 停用。
+3. 返回用户组列表。
+
+预期：
+
+- 用户组列表的“关联资源组”列仍能看到该资源组
+- 标签显示为 `资源组名（已停用）`
+
+### TC-AUTH-025 停用资源组不可继续被关联
+
+步骤：
+
+1. 使用 UI 尝试把停用资源组重新关联到用户组。
+2. 如需更严谨，可手工调用更新用户组接口提交停用资源组 ID。
+
+预期：
+
+- UI 层不能选中停用资源组
+- 后端接口若收到停用资源组 ID，会明确拒绝
+
+## 七、资源范围链路验证
+
+### TC-AUTH-030 developer 只看得到所属资源组实例
+
+步骤：
+
+1. 使用 `dev_user` 登录。
+2. 进入以下页面查看实例下拉框：
+   - 在线查询
+   - 查询权限
+   - 提交工单
+   - 数据字典
+
+预期：
+
+- 只能看到 `rg_dev` 下的实例
+- 看不到 `rg_ops` 下的实例
+
+### TC-AUTH-031 dba_group 只操作所属资源组实例
+
+步骤：
+
+1. 使用 `group_dba_user` 登录。
+2. 尝试访问组外实例的监控、数据库列表或详情。
+
+预期：
+
+- 组外实例访问被拒绝
+- 组内实例操作正常
+
+### TC-AUTH-032 停用资源组后的实例范围变化
+
+步骤：
+
+1. 保持 `dev_user -> ug_dev -> rg_dev -> inst_dev_mysql` 的链路。
+2. 将 `rg_dev` 停用。
+3. 使用 `dev_user` 重新进入在线查询或工单提交页面。
+
+预期：
+
+- `inst_dev_mysql` 不再出现在实例列表中
+- 原通过该资源组继承来的实例可见性立即失效
+
+## 八、查询权限验证
+
+### TC-AUTH-040 库级查询权限申请
+
+步骤：
+
+1. 使用 `dev_user` 登录。
+2. 进入“查询权限”页面。
+3. 选择 `inst_dev_mysql / app_db`，申请库级权限。
+
+预期：
+
+- 申请成功
+- 记录中 `scope_type=database`
+
+### TC-AUTH-041 表级权限必须填写表名
+
+步骤：
+
+1. 提交表级申请。
+2. 故意留空 `table_name`。
+
+预期：
+
+- 请求被校验拒绝
+
+### TC-AUTH-042 审批前查询被拒绝
+
+步骤：
+
+1. 使用 `dev_user` 查询 `app_db.orders`。
+
+预期：
+
+- 返回 403
+- 页面展示权限排查信息
+
+### TC-AUTH-043 权限拒绝层级可解释
+
+步骤：
+
+1. 分别构造两种失败场景：
+   - 实例不在资源范围内
+   - 实例在范围内，但库/表未授权
+2. 查看查询页提示或调用 `/api/v1/query/access-check/`
+
+预期：
+
+- 第一种返回 `resource_scope`
+- 第二种返回 `data_scope`
+
+### TC-AUTH-044 库级授权生效
+
+步骤：
+
+1. 使用 `review_user` 或 `admin` 审批通过库级申请。
+2. 再次使用 `dev_user` 查询 `app_db.orders`。
+
+预期：
+
+- 查询通过
+
+### TC-AUTH-045 表级授权仅放行目标表
+
+步骤：
+
+1. 仅授予 `app_db.orders` 表级权限。
+2. 分别查询 `orders` 与 `customers`。
+
+预期：
+
+- `orders` 可查
+- `customers` 返回 403
+
+## 九、审批流验证
+
+### TC-AUTH-050 审批流页面只允许 3 种节点类型
+
+步骤：
+
+1. 打开审批流管理页面。
+2. 新建或编辑流程。
+
+预期：
+
+- 只能看到：
+  - `指定用户`
+  - `直属上级`
+  - `任意审批员`
+
+### TC-AUTH-051 指定用户节点校验
+
+步骤：
+
+1. 创建 `users` 类型节点。
+2. 不选择审批人直接保存。
+
+预期：
+
+- 保存失败
+- 返回“必须填写 approver_ids”或同义错误
+
+### TC-AUTH-052 直属上级节点生效
+
+步骤：
+
+1. 为 `dev_user` 指定 `manager_user` 为直属上级。
+2. 创建 `manager` 类型审批流。
+3. 提交一条需要审批的申请。
+
+预期：
+
+- 仅 `manager_user` 可以审批
+
+### TC-AUTH-053 任意审批员节点生效
+
+步骤：
+
+1. 创建 `any_reviewer` 类型节点。
+2. 使用具备审批权限的不同账号尝试审批。
+
+预期：
+
+- 任一具备审批权限的用户都可审批
+
+## 十、监控与实例管理验证
+
+### TC-AUTH-060 dba_group 监控范围
+
+步骤：
+
+1. 使用 `group_dba_user` 登录。
+2. 进入“可观测中心”。
+
+预期：
+
+- 只能看到所属资源组内实例
+- 不能修改组外实例的监控配置
+
+### TC-AUTH-061 实例管理权限边界
+
+步骤：
+
+1. 使用无全局实例能力的普通账号尝试更新组外实例。
+
+预期：
+
+- 请求被拒绝
+
+## 十一、API 快速核对
+
+### 登录
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login/ \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"Admin@2024!"}'
+```
+
+### 查询权限排查
+
+```bash
+curl -X POST http://localhost:8000/api/v1/query/access-check/ \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "instance_id": 1,
+    "db_name": "app_db",
+    "sql": "select * from orders limit 1",
+    "limit_num": 100
+  }'
+```
+
+## 十二、最终通过标准
+
+以下条件全部满足，可认为本轮 v2-lite 权限验证通过：
+
+- 菜单显示与权限码一致
+- 页面访问存在前端 PermissionGuard 兜底
+- 用户实例可见性符合 `UserGroup -> ResourceGroup -> Instance`
+- 资源组只承担实例范围，不再承担成员穿梭框与资源组级 Webhook
+- 停用资源组不能继续被用户组新关联
+- 历史停用资源组在列表上仍然可解释
+- 查询权限只支持库级 / 表级
+- 查询拒绝可定位到 `resource_scope / data_scope`
+- 审批流只支持 `users / manager / any_reviewer`
+- `dba_group` 不具备全局实例能力
+- 浏览器标题和数据库类型显示名符合当前 UI 规范

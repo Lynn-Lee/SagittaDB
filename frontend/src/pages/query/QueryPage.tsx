@@ -9,6 +9,7 @@ import Editor from '@monaco-editor/react'
 import { useQuery } from '@tanstack/react-query'
 import { instanceApi } from '@/api/instance'
 import { queryApi, type QueryAccessExplanation, type QueryResult } from '@/api/query'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Text } = Typography
 const { Option } = Select
@@ -112,7 +113,7 @@ export default function QueryPage() {
             {instanceData?.items?.map((inst: any) => (
               <Option key={inst.id} value={inst.id} label={inst.instance_name} style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
                 <Space>
-                  <Tag color="blue" style={{ fontSize: 11 }}>{inst.db_type.toUpperCase()}</Tag>
+                  <Tag color="blue" style={{ fontSize: 11 }}>{formatDbTypeLabel(inst.db_type)}</Tag>
                   {inst.instance_name}
                 </Space>
               </Option>

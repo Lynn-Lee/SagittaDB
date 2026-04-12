@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { instanceApi, type InstanceItem } from '@/api/instance'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -18,10 +19,10 @@ const { Option } = Select
 const DB_TYPE_COLORS: Record<string, string> = {
   mysql: 'blue', pgsql: 'geekblue', oracle: 'red', mongo: 'green',
   redis: 'volcano', clickhouse: 'orange', elasticsearch: 'gold',
-  mssql: 'cyan', cassandra: 'purple', doris: 'magenta',
+  opensearch: 'lime', mssql: 'cyan', cassandra: 'purple', doris: 'magenta', tidb: 'red',
 }
 const DB_TYPES = ['mysql', 'pgsql', 'oracle', 'mongo', 'redis',
-  'clickhouse', 'elasticsearch', 'mssql', 'cassandra', 'doris']
+  'clickhouse', 'elasticsearch', 'opensearch', 'mssql', 'cassandra', 'doris', 'tidb']
 
 // ── 数据库管理子组件 ───────────────────────────────────────
 function InstanceDatabasePanel({ instance }: { instance: InstanceItem }) {
@@ -234,7 +235,7 @@ export default function InstanceList() {
     },
     {
       title: '类型', dataIndex: 'db_type', width: 110,
-      render: (v: string) => <Tag color={DB_TYPE_COLORS[v] || 'default'}>{v.toUpperCase()}</Tag>,
+      render: (v: string) => <Tag color={DB_TYPE_COLORS[v] || 'default'}>{formatDbTypeLabel(v)}</Tag>,
     },
     { title: '默认库', dataIndex: 'db_name', width: 110,
       render: (v: string) => v || <Text type="secondary">—</Text> },
@@ -308,7 +309,7 @@ export default function InstanceList() {
           <Space style={{ width: '100%', display: 'flex' }}>
             <Form.Item name="db_type" label="数据库类型" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select placeholder="选择类型">
-                {DB_TYPES.map(t => <Option key={t} value={t}><Tag color={DB_TYPE_COLORS[t]}>{t.toUpperCase()}</Tag></Option>)}
+                {DB_TYPES.map(t => <Option key={t} value={t}><Tag color={DB_TYPE_COLORS[t]}>{formatDbTypeLabel(t)}</Tag></Option>)}
               </Select>
             </Form.Item>
             <Form.Item name="type" label="主从类型" initialValue="master" style={{ flex: 1 }}>

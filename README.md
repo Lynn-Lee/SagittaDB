@@ -10,7 +10,7 @@
 SagittaDB 通过统一的 Web 界面，帮助 DBA 和研发团队安全、高效地完成 SQL 审核上线、在线查询、慢日志分析、数据库监控等全流程数据库管理工作。
 
 - **安全**：修复原 Archery 5 个 P0 安全漏洞，Token 黑名单 fail-close，所有敏感字段 Fernet/AES 加密存储
-- **全面**：支持 11 种数据库引擎（MySQL / PgSQL / Oracle / MongoDB / Redis / ClickHouse 等）
+- **全面**：支持 11 种数据库引擎（MySQL / PostgreSQL / Oracle / MongoDB / Redis / ClickHouse 等）
 - **高效**：AI Text2SQL + 工单模板 + 自定义审批流，全异步 Celery 执行不阻塞
 - **可观测**：内建 Prometheus + Grafana 监控，全流程操作审计
 - **可解释权限**：v2-lite 权限体系已落地，权限拒绝可定位到身份 / 资源范围 / 数据授权层
@@ -113,6 +113,14 @@ cd frontend && npm run typecheck
 cd backend && python3 -m compileall app
 cd backend && ./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py
 ```
+
+近期补充完成并已联调验证的权限与交互收口：
+
+- 资源组主弹窗只保留“实例范围 + 关联用户组 + 状态”，移除了资源组级 Webhook
+- 停用资源组不能再被用户组新关联，前端与后端双重拦截
+- 用户组列表新增“关联资源组”列，资源组列表直接展示关联用户组标签
+- 浏览器标题统一为 `矢 准 数 据`
+- 前端数据库类型显示统一为官方命名：`MySQL / PostgreSQL / Oracle / TiDB / Doris / ClickHouse / MongoDB / Cassandra / Redis / Elasticsearch / OpenSearch`
 
 ## 开发指南
 

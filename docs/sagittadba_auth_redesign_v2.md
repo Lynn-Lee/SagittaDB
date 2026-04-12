@@ -1,7 +1,7 @@
 # SagittaDB 授权体系重设计方案 v2
 
 > **版本：** v1.0 · 2026-04-12
-> **状态：** v2-lite 基线实现中（优先交付可解释、可测试、可落地版本）
+> **状态：** v2-lite 已落地并进入本地验收阶段（优先交付可解释、可测试、可落地版本）
 > **前置文档：** [sagittadb_auth_design.md](sagittadb_auth_design.md)（v1 现状分析）
 
 ---
@@ -312,7 +312,7 @@ def get_user_accessible_instances(user):
 1. `current_user` 依赖返回 `role` + `permissions` 信息
 2. `require_perm()` 改为读角色的权限码集合
 3. 资源组访问路径改为 用户 → 用户组 → 资源组 → 实例
-4. 审批流支持 `manager` / `user_group` / `role` 节点类型
+4. 审批流首发切到 `manager` 节点，并为二期预留 `user_group` / `role` 扩展位
 5. 前端菜单渲染改为基于角色权限码
 
 ### Phase 4 — 清理旧表 ✅
@@ -330,6 +330,9 @@ def get_user_accessible_instances(user):
 11. 资源组列表 API 新增 `instances` 字段（关联的数据库实例列表）
 12. `UserCreate`/`UserUpdate` 移除 `resource_group_ids`（资源组通过用户组关联）
 13. Alembic 迁移 `0009_drop_legacy_tables.py`
+14. 资源组主弹窗移除资源组级 Webhook，仅保留“实例范围 / 关联用户组 / 状态”
+15. 停用资源组不能再被用户组新关联，前端选择器与后端服务层双重拦截
+16. 浏览器标题统一为 `矢 准 数 据`，数据库类型显示统一为官方命名
 
 ---
 
@@ -342,6 +345,13 @@ def get_user_accessible_instances(user):
 | **资源组（ResourceGroup）** | 实例访问范围，决定能操作哪些库 | 数据域 |
 | **QueryPrivilege** | 细粒度数据访问，决定能查哪张表 | 表级 ACL |
 | **审批流（ApprovalFlow）** | 流程定义，决定工单/权限申请的审批路径 | 审批流程 |
+
+### 当前 UI/交互落地口径
+
+- 资源组创建/编辑弹窗只保留：`group_name / group_name_cn / instance_ids / user_group_ids / is_active`
+- 资源组级 Webhook 不再作为首发权限模型的一部分，通知主路径统一走系统配置
+- 用户组编辑页只允许选择启用中的资源组；历史停用资源组仍可在列表中看到，但不会继续作为可选项
+- 前端数据库类型显示统一使用官方名称：`MySQL / PostgreSQL / Oracle / TiDB / Doris / ClickHouse / MongoDB / Cassandra / Redis / Elasticsearch / OpenSearch`
 
 ---
 

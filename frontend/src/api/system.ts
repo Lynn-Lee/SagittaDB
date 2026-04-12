@@ -34,7 +34,13 @@ export const resourceGroupApi = {
   list: (params?: { page?: number; page_size?: number; search?: string }) =>
     apiClient.get('/system/resource-groups/', { params }).then(r => r.data),
 
-  create: (data: { group_name: string; group_name_cn?: string; ding_webhook?: string; feishu_webhook?: string }) =>
+  create: (data: {
+    group_name: string
+    group_name_cn?: string
+    instance_ids?: number[]
+    user_group_ids?: number[]
+    is_active?: boolean
+  }) =>
     apiClient.post('/system/resource-groups/', data).then(r => r.data),
 
   update: (id: number, data: any) =>

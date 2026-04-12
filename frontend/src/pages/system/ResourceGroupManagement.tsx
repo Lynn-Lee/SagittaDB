@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import {
   Button, Card, Form, Input, Modal, Popconfirm,
-  Space, Table, Tag, Transfer, Typography, message,
+  Select, Space, Switch, Table, Tag, Transfer, Typography, message,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, TeamOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { instanceApi } from '@/api/instance'
 import { resourceGroupApi, userGroupApi } from '@/api/system'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 
@@ -26,10 +28,15 @@ export default function ResourceGroupManagement() {
     queryFn: () => resourceGroupApi.list({ search: search || undefined, page_size: 100 }),
   })
 
+  const { data: instanceData } = useQuery({
+    queryKey: ['instances-for-resource-group'],
+    queryFn: () => instanceApi.list({ page_size: 200 }),
+  })
+
   const { data: allGroups } = useQuery({
     queryKey: ['all-user-groups-for-rg'],
     queryFn: () => userGroupApi.list({ page: 1, page_size: 200 }),
-    enabled: memberModalOpen,
+    enabled: memberModalOpen || modalOpen,
   })
 
   const { data: currentMembers } = useQuery({
@@ -56,12 +63,29 @@ export default function ResourceGroupManagement() {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields()
-      editId ? updateMut.mutate({ id: editId, data: values }) : createMut.mutate(values)
+      const payload = {
+        ...values,
+        user_group_ids: (values.user_group_ids ?? []).map(Number),
+      }
+      editId ? updateMut.mutate({ id: editId, data: payload }) : createMut.mutate(payload)
     } catch { /* validation */ }
   }
 
-  const openCreate = () => { setEditId(null); form.resetFields(); setModalOpen(true) }
-  const openEdit = (r: any) => { setEditId(r.id); form.setFieldsValue(r); setModalOpen(true) }
+  const openCreate = () => {
+    setEditId(null)
+    form.resetFields()
+    form.setFieldsValue({ instance_ids: [], user_group_ids: [] })
+    setModalOpen(true)
+  }
+  const openEdit = (r: any) => {
+    setEditId(r.id)
+    form.setFieldsValue({
+      ...r,
+      instance_ids: (r.instances ?? []).map((inst: any) => inst.id),
+      user_group_ids: (r.user_groups ?? []).map((group: any) => group.id),
+    })
+    setModalOpen(true)
+  }
   const openMembers = async (r: any) => {
     setCurrentRg(r)
     try {
@@ -103,7 +127,7 @@ export default function ResourceGroupManagement() {
 
   const columns = [
     {
-      title: '资源组', key: 'name',
+      title: '资源组', key: 'name', width: 260,
       render: (_: any, r: any) => (
         <Space direction="vertical" size={0}>
           <Text strong>{r.group_name}</Text>
@@ -112,7 +136,7 @@ export default function ResourceGroupManagement() {
       ),
     },
     {
-      title: '数据库实例', key: 'instances', width: 300,
+      title: '数据库实例', key: 'instances', width: 420,
       render: (_: any, r: any) => {
         const instances: any[] = r.instances ?? []
         if (!instances.length) return <Text type="secondary">未关联实例</Text>
@@ -122,6 +146,9 @@ export default function ResourceGroupManagement() {
               <Tag key={inst.id} color={dbTypeColor[inst.db_type] || '#666'} style={{ fontSize: 12 }}>
                 <DatabaseOutlined style={{ marginRight: 4 }} />
                 {inst.instance_name}
+                <Text type="secondary" style={{ fontSize: 11, marginLeft: 6, color: 'rgba(255,255,255,0.82)' }}>
+                  {formatDbTypeLabel(inst.db_type)}
+                </Text>
                 <Text type="secondary" style={{ fontSize: 11, marginLeft: 4, color: 'rgba(255,255,255,0.7)' }}>
                   {inst.host}:{inst.port}
                 </Text>
@@ -132,19 +159,28 @@ export default function ResourceGroupManagement() {
       },
     },
     {
-      title: '用户组', dataIndex: 'user_group_count', width: 80,
+      title: '关联用户组', dataIndex: 'user_group_count', width: 220,
       render: (v: number, r: any) => (
-        <Button type="link" size="small" icon={<TeamOutlined />} onClick={() => openMembers(r)}>
-          {v} 个
-        </Button>
+        <Space direction="vertical" size={4}>
+          <Button type="link" size="small" icon={<TeamOutlined />} onClick={() => openMembers(r)} style={{ padding: 0 }}>
+            {v} 个
+          </Button>
+          {!!r.user_groups?.length && (
+            <Space wrap size={[4, 4]}>
+              {r.user_groups.map((group: any) => (
+                <Tag key={group.id}>{group.name_cn || group.name}</Tag>
+              ))}
+            </Space>
+          )}
+        </Space>
       ),
     },
     {
-      title: '状态', dataIndex: 'is_active', width: 80,
+      title: '状态', dataIndex: 'is_active', width: 96,
       render: (v: boolean) => v ? <Tag color="success">启用</Tag> : <Tag>停用</Tag>,
     },
     {
-      title: '操作', width: 120,
+      title: '操作', width: 96,
       render: (_: any, r: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
@@ -174,6 +210,7 @@ export default function ResourceGroupManagement() {
       <Card style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}
         styles={{ body: { padding: 0 } }}>
         <Table dataSource={data?.items} columns={columns} rowKey="id" loading={isLoading}
+          tableLayout="fixed"
           pagination={{ total: data?.total, pageSize: 20, showSizeChanger: false }} />
       </Card>
 
@@ -189,12 +226,43 @@ export default function ResourceGroupManagement() {
           <Form.Item name="group_name_cn" label="中文名称">
             <Input placeholder="如 生产环境、开发环境" />
           </Form.Item>
-          <Form.Item name="ding_webhook" label="钉钉 Webhook">
-            <Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." />
+          <Form.Item
+            name="instance_ids"
+            label="关联数据库实例"
+            extra="资源组负责管理实例访问范围；用户通过用户组间接获得这些实例的访问权。"
+          >
+            <Select
+              mode="multiple"
+              placeholder="选择要纳入资源组的数据库实例"
+              optionFilterProp="label"
+              showSearch
+              options={(instanceData?.items ?? []).map((inst: any) => ({
+                value: inst.id,
+                label: `${inst.instance_name} (${formatDbTypeLabel(inst.db_type)} · ${inst.host}:${inst.port})`,
+              }))}
+            />
           </Form.Item>
-          <Form.Item name="feishu_webhook" label="飞书 Webhook">
-            <Input placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..." />
+          <Form.Item
+            name="user_group_ids"
+            label="关联用户组"
+            extra="这里配置哪些用户组可以继承此资源组下的实例访问范围；后续也仍可通过列表中的“关联用户组”入口单独调整。"
+          >
+            <Select
+              mode="multiple"
+              placeholder="选择可继承此资源组实例范围的用户组"
+              optionFilterProp="label"
+              showSearch
+              options={(allGroups?.items ?? []).map((group: any) => ({
+                value: group.id,
+                label: `${group.name_cn || group.name}${group.name_cn ? ` (${group.name})` : ''}`,
+              }))}
+            />
           </Form.Item>
+          {editId && (
+            <Form.Item name="is_active" label="状态" valuePropName="checked">
+              <Switch checkedChildren="启用" unCheckedChildren="停用" />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 
@@ -212,7 +280,7 @@ export default function ResourceGroupManagement() {
           <div style={{ marginBottom: 24 }}>
             <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>关联用户组</Text>
             <Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
-              用户组关联后，组内所有成员自动获得此资源组的访问权限：
+              这是 v2-lite 的间接授权链路：用户组关联后，组内所有成员自动获得此资源组下实例的访问权限：
             </Text>
             <Transfer
               dataSource={ugTransferData}

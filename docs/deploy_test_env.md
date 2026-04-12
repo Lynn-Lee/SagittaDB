@@ -361,7 +361,7 @@ docker compose exec frontend cat /etc/nginx/conf.d/default.conf
 测试环境首次部署后，建议按以下顺序准备测试数据：
 
 1. **创建测试用户**：`admin` + 至少 1 个普通用户（含 sql_submit 权限）
-2. **创建资源组**：添加成员，配置通知 Webhook（可用测试用 Webhook）
+2. **创建资源组**：关联数据库实例，并通过用户组把测试账号纳入资源范围
 3. **注册测试实例**：可指向本地 MySQL / PostgreSQL（或 Docker 内另起的实例）
 4. **注册数据库**：对测试实例执行"从引擎同步"
 5. **配置数据脱敏规则**：选一个 email/phone 字段配置规则

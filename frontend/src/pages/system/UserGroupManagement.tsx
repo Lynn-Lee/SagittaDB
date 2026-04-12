@@ -21,16 +21,17 @@ const UserGroupManagement: React.FC = () => {
 
   const { data: usersData } = useQuery({
     queryKey: ['all-users'],
-    queryFn: () => userApi.list({ page: 1, page_size: 500 }),
+    queryFn: () => userApi.list({ page: 1, page_size: 200, is_active: true }),
   })
 
   const { data: rgsData } = useQuery({
     queryKey: ['all-resource-groups'],
-    queryFn: () => resourceGroupApi.list({ page: 1, page_size: 500 }),
+    queryFn: () => resourceGroupApi.list({ page: 1, page_size: 200 }),
   })
 
   const allUsers = usersData?.items ?? []
-  const allRgs = rgsData?.items ?? []
+  const allRgItems = rgsData?.items ?? []
+  const allRgs = allRgItems.filter((rg: any) => rg.is_active)
   const filtered = (groupsData?.items ?? []).filter((g: any) =>
     !search || g.name.includes(search) || g.name_cn?.includes(search),
   )
@@ -44,6 +45,15 @@ const UserGroupManagement: React.FC = () => {
     key: String(rg.id),
     title: rg.group_name_cn || rg.group_name,
   }))
+
+  const activeResourceGroupIds = new Set(allRgs.map((rg: any) => rg.id))
+
+  const resourceGroupNameMap = new Map<number, string>(
+    allRgItems.map((rg: any) => [
+      rg.id,
+      `${rg.group_name_cn || rg.group_name}${rg.is_active ? '' : '（已停用）'}`,
+    ]),
+  )
 
   const createMut = useMutation({
     mutationFn: (data: any) => userGroupApi.create(data),
@@ -80,6 +90,10 @@ const UserGroupManagement: React.FC = () => {
   const openCreate = () => {
     setEditId(null)
     form.resetFields()
+    form.setFieldsValue({
+      member_ids: [],
+      resource_group_ids: [],
+    })
     setModalOpen(true)
   }
 
@@ -93,7 +107,9 @@ const UserGroupManagement: React.FC = () => {
       parent_id: group.parent_id,
       is_active: group.is_active,
       member_ids: (group.member_ids ?? []).map(String),
-      resource_group_ids: (group.resource_group_ids ?? []).map(String),
+      resource_group_ids: (group.resource_group_ids ?? [])
+        .filter((id: number) => activeResourceGroupIds.has(id))
+        .map(String),
     })
     setModalOpen(true)
   }
@@ -124,6 +140,19 @@ const UserGroupManagement: React.FC = () => {
     { title: '中文名', dataIndex: 'name_cn', width: 150 },
     { title: '描述', dataIndex: 'description', ellipsis: true },
     { title: '成员数', dataIndex: 'member_count', width: 90 },
+    {
+      title: '关联资源组', dataIndex: 'resource_group_ids', width: 260,
+      render: (ids: number[] = []) => {
+        if (!ids.length) return <span style={{ color: '#999' }}>未关联</span>
+        return (
+          <Space wrap size={[4, 4]}>
+            {ids.map((id) => (
+              <Tag key={id}>{resourceGroupNameMap.get(id) || `资源组#${id}`}</Tag>
+            ))}
+          </Space>
+        )
+      },
+    },
     {
       title: '状态', dataIndex: 'is_active', width: 80,
       render: (v: boolean) => v ? <Tag color="green">启用</Tag> : <Tag color="red">停用</Tag>,
@@ -217,7 +246,12 @@ const UserGroupManagement: React.FC = () => {
             </Col>
           </Row>
 
-          <Form.Item name="member_ids" label="组成员">
+          <Form.Item
+            name="member_ids"
+            label="组成员"
+            valuePropName="targetKeys"
+            getValueFromEvent={(nextTargetKeys) => nextTargetKeys}
+          >
             <Transfer
               dataSource={userTransferSource}
               render={(item) => item.title!}
@@ -228,11 +262,18 @@ const UserGroupManagement: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item name="resource_group_ids" label="关联资源组">
+          <Form.Item
+            name="resource_group_ids"
+            label="关联资源组"
+            valuePropName="targetKeys"
+            getValueFromEvent={(nextTargetKeys) => nextTargetKeys}
+          >
             <Transfer
               dataSource={rgTransferSource}
               render={(item) => item.title!}
               titles={['可选资源组', '已关联']}
+              showSearch
+              filterOption={(input, item) => (item.title ?? '').toLowerCase().includes(input.toLowerCase())}
               listStyle={{ width: 280, height: 300 }}
             />
           </Form.Item>

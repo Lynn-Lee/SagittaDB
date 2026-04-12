@@ -17,7 +17,7 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 
 - **安全**：彻底修复原 Archery 5 个 P0 安全漏洞，所有敏感字段加密存储
 - **高效**：AI Text2SQL + 工单模板提升 SQL 编写效率，全异步执行不阻塞
-- **全面**：支持 11 种数据库引擎，覆盖 MySQL/PgSQL/Oracle/MongoDB/Redis/ClickHouse 等
+- **全面**：支持 11 种数据库引擎，覆盖 MySQL/PostgreSQL/Oracle/MongoDB/Redis/ClickHouse 等
 - **可观测**：内建 Prometheus + Grafana 监控体系，全流程操作审计
 
 ### 1.2 目标用户
@@ -169,7 +169,7 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 |---|---|
 | 审批流名称 | 唯一标识，如"DBA 二级审批流" |
 | 审批节点顺序 | 多个节点按序编号，所有节点通过才进入执行状态 |
-| 节点审批人类型 | 三种可选：指定用户 / 资源组成员 / 任意拥有 sql_review 权限的用户 |
+| 节点审批人类型 | 三种可选：指定用户 / 直属上级 / 任意审批员 |
 | 快照机制 | 工单创建时快照审批流节点，模板变更不影响已在审批中的工单 |
 
 提交工单时选填 `flow_id`；不填则沿用原单级资源组审批模式（向后兼容）。
@@ -231,14 +231,14 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 - 查看数据库当前活跃会话（processlist）
 - 显示：会话 ID、用户、来源 IP、执行时长、当前 SQL
 - 支持 Kill 指定会话（需 `process_kill` 权限）
-- 支持引擎：MySQL/PgSQL/Oracle/MongoDB/ClickHouse/Redis
+- 支持引擎：MySQL/PostgreSQL/Oracle/MongoDB/ClickHouse/Redis
 
 #### 2.5.2 慢日志分析
 
 - 查询数据库慢日志记录
 - 按执行时间、扫描行数、执行次数排序
 - 慢 SQL 文本展示
-- 支持：MySQL/PgSQL/MongoDB
+- 支持：MySQL/PostgreSQL/MongoDB
 
 #### 2.5.3 SQL 优化
 
@@ -315,8 +315,9 @@ SagittaDB（矢准数据）是基于 Archery v1.14.0 深度重构的企业级数
 #### 2.7.2 资源组管理
 
 - 资源组 CRUD（标识、中文名）
-- 成员管理（穿梭框 Transfer 组件）
-- 配置钉钉/飞书 Webhook（工单通知路由）
+- 关联数据库实例（资源范围）
+- 关联用户组（用户通过用户组间接获得实例访问范围）
+- 启用/停用控制；停用资源组不能继续被用户组新关联
 
 #### 2.7.3 系统配置
 
@@ -408,7 +409,7 @@ FastAPI（:8000）← 业务逻辑、JWT 鉴权
 PostgreSQL(:5432)  Redis(:6379)   Celery Worker
 数据持久化          消息队列/缓存    SQL 异步执行
     ↕
-被管理数据库（MySQL/PgSQL/Oracle 等）
+被管理数据库（MySQL/PostgreSQL/Oracle 等）
 ```
 
 ### 4.2 技术栈

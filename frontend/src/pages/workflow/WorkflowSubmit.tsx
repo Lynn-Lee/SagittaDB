@@ -8,6 +8,7 @@ import { instanceApi } from '@/api/instance'
 import { resourceGroupApi } from '@/api/system'
 import { workflowApi } from '@/api/workflow'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -116,7 +117,7 @@ export default function WorkflowSubmit() {
                 showSearch optionFilterProp="label" popupMatchSelectWidth={false}>
                 {instanceData?.items?.map((i: any) => (
                   <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>
-                    <Tag color="blue">{i.db_type.toUpperCase()}</Tag> {i.instance_name}
+                    <Tag color="blue">{formatDbTypeLabel(i.db_type)}</Tag> {i.instance_name}
                   </Option>
                 ))}
               </Select>

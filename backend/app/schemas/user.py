@@ -83,8 +83,8 @@ class GrantPermissionRequest(BaseModel):
 class ResourceGroupCreate(BaseModel):
     group_name: str
     group_name_cn: str = ""
-    ding_webhook: str = ""
-    feishu_webhook: str = ""
+    instance_ids: list[int] = []
+    user_group_ids: list[int] = []
 
     @field_validator("group_name")
     @classmethod
@@ -96,9 +96,9 @@ class ResourceGroupCreate(BaseModel):
 
 class ResourceGroupUpdate(BaseModel):
     group_name_cn: str | None = None
-    ding_webhook: str | None = None
-    feishu_webhook: str | None = None
     is_active: bool | None = None
+    instance_ids: list[int] | None = None
+    user_group_ids: list[int] | None = None
 
 
 class ResourceGroupResponse(BaseModel):

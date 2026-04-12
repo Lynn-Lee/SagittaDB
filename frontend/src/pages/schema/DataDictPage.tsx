@@ -8,6 +8,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { instanceApi } from '@/api/instance'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -89,7 +90,7 @@ export default function DataDictPage() {
             showSearch optionFilterProp="label">
             {instances?.items?.map((i: any) => (
               <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>
-                <Tag color="blue" style={{ fontSize: 11 }}>{i.db_type.toUpperCase()}</Tag>
+                <Tag color="blue" style={{ fontSize: 11 }}>{formatDbTypeLabel(i.db_type)}</Tag>
                 {i.instance_name}
               </Option>
             ))}

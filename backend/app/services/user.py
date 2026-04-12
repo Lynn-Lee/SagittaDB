@@ -15,8 +15,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.security import hash_password, verify_password
-from app.models.role import role_permission
-from app.models.user import Permission, ResourceGroup, Users
+from app.models.role import UserGroup, group_resource_group, role_permission
+from app.models.instance import Instance
+from app.models.user import Permission, ResourceGroup, Users, instance_resource_group
 from app.schemas.user import (
     ResourceGroupCreate,
     ResourceGroupUpdate,
@@ -369,19 +370,84 @@ class ResourceGroupService:
         )
         if existing.scalar_one_or_none():
             raise ConflictException(f"资源组 '{data.group_name}' 已存在")
-        rg = ResourceGroup(**data.model_dump())
+        payload = data.model_dump(exclude={"instance_ids", "user_group_ids"})
+        rg = ResourceGroup(**payload)
         db.add(rg)
+        await db.flush()
+        if data.instance_ids:
+            valid_instance_ids = await db.execute(
+                select(Instance.id).where(Instance.id.in_(data.instance_ids))
+            )
+            for instance_id in valid_instance_ids.scalars().all():
+                await db.execute(
+                    instance_resource_group.insert().values(
+                        instance_id=instance_id,
+                        resource_group_id=rg.id,
+                    )
+                )
+        if data.user_group_ids:
+            valid_group_ids = await db.execute(
+                select(UserGroup.id).where(UserGroup.id.in_(data.user_group_ids))
+            )
+            for group_id in valid_group_ids.scalars().all():
+                await db.execute(
+                    group_resource_group.insert().values(
+                        group_id=group_id,
+                        resource_group_id=rg.id,
+                    )
+                )
         await db.commit()
         await db.refresh(rg)
         return rg
 
     @staticmethod
     async def update(db: AsyncSession, rg_id: int, data: ResourceGroupUpdate) -> ResourceGroup:
-        rg = await ResourceGroupService.get_by_id(db, rg_id)
+        result = await db.execute(
+            select(ResourceGroup)
+            .options(
+                selectinload(ResourceGroup.instances),
+                selectinload(ResourceGroup.user_groups),
+            )
+            .where(ResourceGroup.id == rg_id)
+        )
+        rg = result.scalar_one_or_none()
         if not rg:
             raise NotFoundException(f"资源组 ID={rg_id} 不存在")
-        for field, value in data.model_dump(exclude_none=True).items():
+        payload = data.model_dump(exclude_none=True, exclude={"instance_ids", "user_group_ids"})
+        for field, value in payload.items():
             setattr(rg, field, value)
+        if data.instance_ids is not None:
+            await db.execute(
+                delete(instance_resource_group).where(
+                    instance_resource_group.c.resource_group_id == rg_id
+                )
+            )
+            valid_instance_ids = await db.execute(
+                select(Instance.id).where(Instance.id.in_(data.instance_ids))
+            )
+            for instance_id in valid_instance_ids.scalars().all():
+                await db.execute(
+                    instance_resource_group.insert().values(
+                        instance_id=instance_id,
+                        resource_group_id=rg_id,
+                    )
+                )
+        if data.user_group_ids is not None:
+            await db.execute(
+                delete(group_resource_group).where(
+                    group_resource_group.c.resource_group_id == rg_id
+                )
+            )
+            valid_group_ids = await db.execute(
+                select(UserGroup.id).where(UserGroup.id.in_(data.user_group_ids))
+            )
+            for group_id in valid_group_ids.scalars().all():
+                await db.execute(
+                    group_resource_group.insert().values(
+                        group_id=group_id,
+                        resource_group_id=rg_id,
+                    )
+                )
         await db.commit()
         await db.refresh(rg)
         return rg

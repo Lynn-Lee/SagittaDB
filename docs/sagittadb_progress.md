@@ -74,7 +74,7 @@
 - 超级管理员（is_superuser）跳过权限检查
 
 **实例管理**
-- 11 种数据库类型支持（MySQL/PgSQL/Oracle/MongoDB/Redis/ClickHouse/ES/MSSQL/Cassandra/Doris/TiDB）
+- 11 种数据库类型支持（MySQL/PostgreSQL/Oracle/MongoDB/Redis/ClickHouse/Elasticsearch/OpenSearch/MSSQL/Cassandra/Doris/TiDB）
 - 实例 CRUD + 测试连接
 - Fernet 对称加密存储密码字段
 - SSH 隧道配置（跳板机连接）
@@ -83,8 +83,9 @@
 
 **资源组管理**
 - 资源组 CRUD
-- 成员穿梭框管理（Transfer 组件）
-- 钉钉/飞书 Webhook 配置
+- 关联数据库实例多选
+- 关联用户组管理（资源组不再直接管理成员）
+- `is_active` 启停控制
 
 ### Sprint 2 — 在线查询 ✅
 
@@ -278,7 +279,7 @@
 
 **后端**
 - 新增数据模型：`ApprovalFlow`（审批流模板）+ `ApprovalFlowNode`（节点，支持顺序编号）
-- 三种审批人类型：`users`（指定用户）/ `group`（资源组成员）/ `any_reviewer`（任意 sql_review 权限用户）
+- 三种审批人类型：`users`（指定用户）/ `manager`（直属上级）/ `any_reviewer`（任意审批员）
 - 快照机制：工单创建时将审批流节点复制为 `audit_auth_groups_info` JSON，模板变更不影响在途工单
 - Alembic migration `0005_approval_flow.py`：新增两张表 + `sql_workflow.flow_id` 外键
 - `ApprovalFlowService`：CRUD（列表/详情/创建/更新/停用）+ `snapshot_for_workflow()`
@@ -289,7 +290,7 @@
 - `frontend/src/pages/system/ApprovalFlowPage.tsx`：
   - 审批流列表（名称、节点数、状态、创建人）
   - Drawer 表单：审批流基本信息 + `Form.List` 动态节点编辑
-  - 节点审批人类型联动：选 `any_reviewer` 隐藏选择框，选 `users`/`group` 展示对应下拉
+  - 节点审批人类型联动：选 `any_reviewer` 隐藏选择框，选 `users` 展示审批人选择，`manager` 无需额外选择
 - `MainLayout.tsx` 菜单：系统管理 → 审批流管理（`ApartmentOutlined` 图标）
 - `App.tsx` 路由：`/system/approval-flows` lazy import
 
@@ -361,7 +362,7 @@
 | 问题 | 严重级别 | 说明 |
 |---|---|---|
 | Celery Worker 健康检查 unhealthy | 低 | 无 HTTP 健康检查端点，功能正常但状态显示异常 |
-| Oracle/MSSQL/Cassandra/ES 引擎未全量验证 | 中 | 骨架已实现，需真实环境测试 |
+| Oracle/MSSQL/Cassandra/Elasticsearch/OpenSearch 引擎未全量验证 | 中 | 骨架已实现，需真实环境测试 |
 | Alembic 迁移文件需手动执行 | 低 | 新建表均有对应 SQL 脚本，需补充 CI 自动执行 |
 | totp_secret 字段已扩展至 500 | 已修复 | 原 100 字节不足，已通过 ALTER TABLE 修复 |
 | OAuth 回调 URL 需与各平台后台配置一致 | 低 | 部署时需在钉钉/飞书/企微管理后台填写正确的 callback URL |
@@ -460,6 +461,9 @@
 | 用户管理 v2 字段 | ✅ | 角色选择 / 用户组（显示名称 Tag）/ 直属上级 / 工号 / 部门 / 职位 |
 | 资源组管理 v2 | ✅ | 展示关联数据库实例列表 + 用户组穿梭框，移除直接成员穿梭框 |
 | 资源组用户组关联 | ✅ | 前端穿梭框 + 后端 GET/PUT API |
+| 资源组停用约束 | ✅ | 停用资源组不能再被用户组新关联，前后端双重拦截 |
+| 数据库类型显示统一 | ✅ | 前端统一展示为 MySQL / PostgreSQL / TiDB / ClickHouse 等官方命名 |
+| 品牌页签统一 | ✅ | 浏览器标题更新为 `矢 准 数 据` |
 | 数据迁移脚本 | ✅ | scripts/migrate_v1_to_v2.py（dry-run + 实际运行验证） |
 | 权限 API | ✅ | get_merged_permissions 仅查 role_permission（grant/revoke 操作角色权限） |
 | Phase 4 旧表清理 | ✅ | 删除 user_permission / user_resource_group 表及所有代码引用 |
@@ -482,6 +486,7 @@
 | `frontend: npm run typecheck` | ✅ 通过 |
 | `backend: python3 -m compileall app` | ✅ 通过 |
 | `backend: ./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py` | ✅ 13 passed |
+| 停用资源组关联拦截 | ✅ 通过（后端容器内直接验证 `site-db` 被拒绝关联） |
 
 ### 首发未启用但保留兼容位
 
@@ -499,4 +504,4 @@
 
 ---
 
-*文档最后更新：2026-04-12 · SagittaDB v1.0-GA + v2-lite 权限收敛已完成（100%）*
+*文档最后更新：2026-04-13 · SagittaDB v1.0-GA + v2-lite 权限收敛已完成（100%）*

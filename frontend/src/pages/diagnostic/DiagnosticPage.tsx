@@ -4,6 +4,7 @@ import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { instanceApi } from '@/api/instance'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -67,7 +68,7 @@ export default function DiagnosticPage() {
           <Select placeholder="选择实例" style={{ width: 220 }} onChange={setInstanceId} showSearch optionFilterProp="label">
             {instanceData?.items?.map((i: any) => (
               <Option key={i.id} value={i.id} label={i.instance_name}>
-                <Tag color="blue">{i.db_type.toUpperCase()}</Tag> {i.instance_name}
+                <Tag color="blue">{formatDbTypeLabel(i.db_type)}</Tag> {i.instance_name}
               </Option>
             ))}
           </Select>

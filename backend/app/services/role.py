@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import ConflictException, NotFoundException
+from app.core.exceptions import AppException, ConflictException, NotFoundException
 from app.models.role import (
     Role,
     UserGroup,
@@ -284,6 +284,24 @@ class RoleService:
 
 class UserGroupService:
     @staticmethod
+    async def _get_active_resource_groups(
+        db: AsyncSession, resource_group_ids: list[int]
+    ) -> list[ResourceGroup]:
+        if not resource_group_ids:
+            return []
+
+        result = await db.execute(
+            select(ResourceGroup).where(
+                ResourceGroup.id.in_(resource_group_ids),
+                ResourceGroup.is_active.is_(True),
+            )
+        )
+        groups = list(result.scalars().all())
+        if len(groups) != len(set(resource_group_ids)):
+            raise AppException("停用或不存在的资源组不能关联到用户组")
+        return groups
+
+    @staticmethod
     async def get_by_id(db: AsyncSession, group_id: int) -> UserGroup | None:
         result = await db.execute(select(UserGroup).where(UserGroup.id == group_id))
         return result.scalar_one_or_none()
@@ -332,10 +350,10 @@ class UserGroupService:
         await db.flush()
 
         if resource_group_ids:
-            rgs = await db.execute(
-                select(ResourceGroup).where(ResourceGroup.id.in_(resource_group_ids))
+            resource_groups = await UserGroupService._get_active_resource_groups(
+                db, resource_group_ids
             )
-            for rg in rgs.scalars().all():
+            for rg in resource_groups:
                 await db.execute(
                     group_resource_group.insert().values(group_id=group.id, resource_group_id=rg.id)
                 )
@@ -379,9 +397,14 @@ class UserGroupService:
             await db.execute(
                 delete(group_resource_group).where(group_resource_group.c.group_id == group_id)
             )
-            for rg_id in resource_group_ids:
+            resource_groups = await UserGroupService._get_active_resource_groups(
+                db, resource_group_ids
+            )
+            for rg in resource_groups:
                 await db.execute(
-                    group_resource_group.insert().values(group_id=group_id, resource_group_id=rg_id)
+                    group_resource_group.insert().values(
+                        group_id=group_id, resource_group_id=rg.id
+                    )
                 )
 
         if member_ids is not None:

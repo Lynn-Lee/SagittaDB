@@ -5,6 +5,7 @@ import Editor from '@monaco-editor/react'
 import { useQuery } from '@tanstack/react-query'
 import { instanceApi } from '@/api/instance'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title } = Typography
 const { Option } = Select
@@ -56,7 +57,7 @@ export default function OptimizePage() {
       <Card style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)', marginBottom: 16 }} styles={{ body: { padding: '12px 16px' } }}>
         <Space wrap>
           <Select placeholder="选择实例" style={{ minWidth: 220, maxWidth: 360 }} onChange={(v) => { setInstanceId(v); setDbName('') }} showSearch optionFilterProp="label" popupMatchSelectWidth={false}>
-            {instanceData?.items?.map((i: any) => <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}><Tag color="blue">{i.db_type.toUpperCase()}</Tag> {i.instance_name}</Option>)}
+            {instanceData?.items?.map((i: any) => <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}><Tag color="blue">{formatDbTypeLabel(i.db_type)}</Tag> {i.instance_name}</Option>)}
           </Select>
           <Select placeholder="选择数据库" style={{ minWidth: 160, maxWidth: 360 }} value={dbName || undefined} onChange={setDbName} disabled={!instanceId} showSearch popupMatchSelectWidth={false} optionFilterProp="children">
             {(dbData?.items || []).map((d: any) => (
@@ -79,7 +80,7 @@ export default function OptimizePage() {
         </Card>
       )}
       {explainResult && (
-        <Card title={`EXPLAIN 结果（${explainResult.db_type?.toUpperCase()}）`} style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }} styles={{ body: { padding: 0 } }}>
+        <Card title={`EXPLAIN 结果（${formatDbTypeLabel(explainResult.db_type)}）`} style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }} styles={{ body: { padding: 0 } }}>
           <Table
             dataSource={(explainResult.rows || []).map((r: any[], i: number) => ({ key: i, ...Object.fromEntries((explainResult.column_list || []).map((c: string, j: number) => [c, r[j]])) }))}
             columns={(explainResult.column_list || []).map((c: string) => ({ title: c, dataIndex: c, key: c, ellipsis: true, width: 140 }))}

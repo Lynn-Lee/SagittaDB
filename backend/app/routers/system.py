@@ -455,6 +455,10 @@ async def list_resource_groups(
                 "tenant_id": rg.tenant_id,
                 "member_count": mc,
                 "user_group_count": len(ugs),
+                "user_groups": [
+                    {"id": g.id, "name": g.name, "name_cn": g.name_cn}
+                    for g in ugs
+                ],
                 "instances": instances,
             }
         )

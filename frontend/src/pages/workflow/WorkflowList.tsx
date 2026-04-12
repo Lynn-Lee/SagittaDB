@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { workflowApi } from '@/api/workflow'
 import { instanceApi } from '@/api/instance'
+import { formatDbTypeLabel } from '@/utils/dbType'
 import dayjs from 'dayjs'
 
 const { Title, Text } = Typography
@@ -158,7 +159,7 @@ export default function WorkflowList() {
           >
             {instanceData?.items?.map((i: any) => (
               <Option key={i.id} value={i.id} label={i.instance_name}>
-                <Tag color="blue" style={{ fontSize: 11 }}>{i.db_type.toUpperCase()}</Tag>
+                <Tag color="blue" style={{ fontSize: 11 }}>{formatDbTypeLabel(i.db_type)}</Tag>
                 {i.instance_name}
               </Option>
             ))}

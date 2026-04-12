@@ -10,6 +10,7 @@ import {
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { instanceApi } from '@/api/instance'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text, Paragraph } = Typography
 const { Option } = Select
@@ -75,7 +76,7 @@ export default function BinlogPage() {
                   rules={[{ required: true }]} initialValue="mysql">
                   <Select>
                     {['mysql', 'tidb', 'pgsql', 'oracle', 'mssql', 'clickhouse', 'doris'].map(t => (
-                      <Option key={t} value={t}>{t.toUpperCase()}</Option>
+                      <Option key={t} value={t}>{formatDbTypeLabel(t)}</Option>
                     ))}
                   </Select>
                 </Form.Item>
@@ -162,7 +163,7 @@ export default function BinlogPage() {
                   ?.filter((i: any) => ['mysql', 'tidb'].includes(i.db_type))
                   .map((i: any) => (
                     <Option key={i.id} value={i.id} label={i.instance_name}>
-                      <Tag color="blue">{i.db_type.toUpperCase()}</Tag> {i.instance_name}
+                      <Tag color="blue">{formatDbTypeLabel(i.db_type)}</Tag> {i.instance_name}
                     </Option>
                   ))}
               </Select>
@@ -258,7 +259,7 @@ export default function BinlogPage() {
                     <Tag color={STRATEGY_COLORS[allGuides.guides[db].strategy] || 'default'}>
                       {allGuides.guides[db].strategy}
                     </Tag>
-                    {db.toUpperCase()}
+                    {formatDbTypeLabel(db)}
                   </Option>
                 ))}
               </Select>
@@ -274,7 +275,7 @@ export default function BinlogPage() {
                       <Space>
                         <Tag color={STRATEGY_COLORS[info.strategy] || 'default'}
                           style={{ fontSize: 10 }}>{info.strategy}</Tag>
-                        <Text style={{ fontSize: 13 }}>{db.toUpperCase()}</Text>
+                        <Text style={{ fontSize: 13 }}>{formatDbTypeLabel(db)}</Text>
                       </Space>
                     </div>
                   ))}
@@ -283,7 +284,7 @@ export default function BinlogPage() {
             </Col>
             <Col span={16}>
               {dbGuide && (
-                <Card title={`${selectedDbType.toUpperCase()} 回滚方案`}
+                <Card title={`${formatDbTypeLabel(selectedDbType)} 回滚方案`}
                   style={{ borderRadius: 8 }}>
                   <Space direction="vertical" style={{ width: '100%' }}>
                     <div>

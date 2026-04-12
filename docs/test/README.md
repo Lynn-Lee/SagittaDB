@@ -1,7 +1,7 @@
 # SagittaDB 功能测试文档索引
 
 > **项目：** SagittaDB 矢准数据 v1.0-beta
-> **文档版本：** v1.1 · 2026-04-11
+> **文档版本：** v1.2 · 2026-04-13
 > **测试环境：** http://localhost（前端）/ http://localhost:8000（后端）
 > **默认账号：** admin / Admin@2024!
 
@@ -23,8 +23,10 @@
 | [Pack F — 第三方登录](./pack_f_third_party_auth_test.md) | Pack F | 17 | LDAP、钉钉/飞书/企微 OAuth2、CAS、CSRF 防护 |
 | [Pack G — 质量保障](./pack_g_quality_assurance_test.md) | Pack G | 19 | 单元测试 152 个、集成测试 36 个、Locust 压测、安全扫描 |
 | [Pack H — 生产就绪](./pack_h_production_deploy_test.md) | Pack H | 19 | Helm Chart、生产 Compose、备份脚本、GHCR 发布、Flower |
+| [v2-lite 权限本地验证清单](./v2_lite_auth_local_validation.md) | v2-lite auth | 20+ | 本地快速验证角色、资源范围、查询授权、审批流 |
+| [v2-lite 权限完整验证文档](./v2_lite_auth_full_validation.md) | v2-lite auth | 30+ | 完整验证角色、资源组、用户组、状态变更、查询权限、审批流、监控范围 |
 
-**总用例数：182 个**
+**总用例数：182+ 个**
 
 ---
 

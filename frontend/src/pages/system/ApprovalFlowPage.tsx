@@ -41,7 +41,7 @@ export default function ApprovalFlowPage() {
 
   const { data: allUsers } = useQuery({
     queryKey: ['all-users-for-flow'],
-    queryFn: () => userApi.list({ page_size: 500, is_active: true }),
+    queryFn: () => userApi.list({ page_size: 200, is_active: true }),
     enabled: drawerOpen,
   })
 
