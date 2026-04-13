@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import AppException, ConflictException, NotFoundException
 from app.models.instance import Instance
@@ -20,13 +21,37 @@ logger = logging.getLogger(__name__)
 class MonitorService:
 
     @staticmethod
-    async def list_configs(db: AsyncSession, page: int = 1, page_size: int = 20) -> tuple[int, list[dict]]:
-        total_q = await db.execute(select(func.count()).select_from(MonitorCollectConfig))
+    def _can_access_instance(user: dict, instance: Instance) -> bool:
+        if user.get("is_superuser") or "monitor_all_instances" in user.get("permissions", []):
+            return True
+        user_rg_ids = set(user.get("resource_groups", []))
+        instance_rg_ids = {rg.id for rg in instance.resource_groups}
+        return bool(user_rg_ids & instance_rg_ids)
+
+    @staticmethod
+    async def list_configs(
+        db: AsyncSession,
+        user: dict,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[int, list[dict]]:
+        query = select(MonitorCollectConfig, Instance.instance_name).join(
+            Instance, MonitorCollectConfig.instance_id == Instance.id
+        )
+        if not (user.get("is_superuser") or "monitor_all_instances" in user.get("permissions", [])):
+            user_rg_ids = user.get("resource_groups", [])
+            if not user_rg_ids:
+                return 0, []
+            from app.models.user import ResourceGroup
+
+            query = query.join(Instance.resource_groups.of_type(ResourceGroup)).where(
+                ResourceGroup.id.in_(user_rg_ids)
+            ).distinct()
+
+        total_q = await db.execute(select(func.count()).select_from(query.subquery()))
         total = total_q.scalar_one()
         result = await db.execute(
-            select(MonitorCollectConfig, Instance.instance_name)
-            .join(Instance, MonitorCollectConfig.instance_id == Instance.id)
-            .offset((page - 1) * page_size).limit(page_size)
+            query.offset((page - 1) * page_size).limit(page_size)
         )
         items = []
         for cfg, inst_name in result:
@@ -40,9 +65,16 @@ class MonitorService:
 
     @staticmethod
     async def create_config(db: AsyncSession, data: MonitorConfigCreate, operator: dict) -> MonitorCollectConfig:
-        inst = await db.execute(select(Instance).where(Instance.id == data.instance_id))
-        if not inst.scalar_one_or_none():
+        inst = await db.execute(
+            select(Instance)
+            .options(selectinload(Instance.resource_groups))
+            .where(Instance.id == data.instance_id)
+        )
+        instance = inst.scalar_one_or_none()
+        if not instance:
             raise NotFoundException(f"实例 ID={data.instance_id} 不存在")
+        if not MonitorService._can_access_instance(operator, instance):
+            raise AppException("不能为资源组外实例配置监控", code=403)
         existing = await db.execute(select(MonitorCollectConfig).where(MonitorCollectConfig.instance_id == data.instance_id))
         if existing.scalar_one_or_none():
             raise ConflictException(f"实例 ID={data.instance_id} 已有采集配置")
@@ -57,11 +89,24 @@ class MonitorService:
         return cfg
 
     @staticmethod
-    async def update_config(db: AsyncSession, config_id: int, data: MonitorConfigUpdate) -> MonitorCollectConfig:
-        result = await db.execute(select(MonitorCollectConfig).where(MonitorCollectConfig.id == config_id))
-        cfg = result.scalar_one_or_none()
-        if not cfg:
+    async def update_config_with_access(
+        db: AsyncSession,
+        config_id: int,
+        data: MonitorConfigUpdate,
+        user: dict,
+    ) -> MonitorCollectConfig:
+        result = await db.execute(
+            select(MonitorCollectConfig, Instance)
+            .join(Instance, MonitorCollectConfig.instance_id == Instance.id)
+            .options(selectinload(Instance.resource_groups))
+            .where(MonitorCollectConfig.id == config_id)
+        )
+        row = result.first()
+        if not row:
             raise NotFoundException(f"采集配置 ID={config_id} 不存在")
+        cfg, instance = row
+        if not MonitorService._can_access_instance(user, instance):
+            raise AppException("不能修改资源组外实例的监控配置", code=403)
         for field, value in data.model_dump(exclude_none=True).items():
             setattr(cfg, field, value)
         await db.commit()
@@ -69,11 +114,19 @@ class MonitorService:
         return cfg
 
     @staticmethod
-    async def delete_config(db: AsyncSession, config_id: int) -> None:
-        result = await db.execute(select(MonitorCollectConfig).where(MonitorCollectConfig.id == config_id))
-        cfg = result.scalar_one_or_none()
-        if not cfg:
+    async def delete_config(db: AsyncSession, config_id: int, user: dict) -> None:
+        result = await db.execute(
+            select(MonitorCollectConfig, Instance)
+            .join(Instance, MonitorCollectConfig.instance_id == Instance.id)
+            .options(selectinload(Instance.resource_groups))
+            .where(MonitorCollectConfig.id == config_id)
+        )
+        row = result.first()
+        if not row:
             raise NotFoundException(f"采集配置 ID={config_id} 不存在")
+        cfg, instance = row
+        if not MonitorService._can_access_instance(user, instance):
+            raise AppException("不能删除资源组外实例的监控配置", code=403)
         await db.delete(cfg)
         await db.commit()
 
@@ -137,6 +190,17 @@ class MonitorService:
     async def check_privilege(db: AsyncSession, user: dict, instance_id: int) -> bool:
         if user.get("is_superuser") or "monitor_all_instances" in user.get("permissions", []):
             return True
+        instance_result = await db.execute(
+            select(Instance)
+            .options(selectinload(Instance.resource_groups))
+            .where(Instance.id == instance_id, Instance.is_active.is_(True))
+        )
+        instance = instance_result.scalar_one_or_none()
+        if not instance:
+            return False
+        if MonitorService._can_access_instance(user, instance):
+            return True
+
         result = await db.execute(
             select(MonitorPrivilege).where(and_(
                 MonitorPrivilege.user_id == user["id"],

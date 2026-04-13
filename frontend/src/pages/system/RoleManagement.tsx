@@ -89,10 +89,10 @@ const RoleManagement: React.FC = () => {
   }
 
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '角色标识', dataIndex: 'name', width: 150 },
-    { title: '中文名', dataIndex: 'name_cn', width: 150 },
-    { title: '描述', dataIndex: 'description', ellipsis: true },
+    { title: 'ID', dataIndex: 'id', width: 70 },
+    { title: '角色标识', dataIndex: 'name', width: 140, ellipsis: true },
+    { title: '中文名', dataIndex: 'name_cn', width: 140, ellipsis: true },
+    { title: '描述', dataIndex: 'description', width: 220, ellipsis: true },
     {
       title: '内置', dataIndex: 'is_system', width: 80,
       render: (v: boolean) => v ? <Tag color="blue">内置</Tag> : <Tag>自定义</Tag>,
@@ -104,6 +104,18 @@ const RoleManagement: React.FC = () => {
     {
       title: '权限数', dataIndex: 'permissions', width: 100,
       render: (perms: string[]) => perms?.length ?? 0,
+    },
+    {
+      title: '权限预览', dataIndex: 'permissions', width: 300,
+      render: (perms: string[] = []) => {
+        if (!perms.length) return <span style={{ color: '#999' }}>未配置</span>
+        return (
+          <Space wrap size={[4, 4]}>
+            {perms.slice(0, 4).map((perm) => <Tag key={perm}>{perm}</Tag>)}
+            {perms.length > 4 && <Tag>+{perms.length - 4}</Tag>}
+          </Space>
+        )
+      },
     },
     {
       title: '操作', width: 140,
@@ -147,6 +159,8 @@ const RoleManagement: React.FC = () => {
           columns={columns}
           dataSource={filtered}
           loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 1180 }}
           pagination={false}
           size="middle"
         />

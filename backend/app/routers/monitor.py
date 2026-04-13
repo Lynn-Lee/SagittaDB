@@ -58,7 +58,7 @@ async def list_configs(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    total, items = await MonitorService.list_configs(db, page, page_size)
+    total, items = await MonitorService.list_configs(db, user, page, page_size)
     return {"total": total, "page": page, "page_size": page_size, "items": items}
 
 
@@ -79,7 +79,7 @@ async def update_config(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    cfg = await MonitorService.update_config(db, config_id, data)
+    cfg = await MonitorService.update_config_with_access(db, config_id, data, user)
     return {"status": 0, "msg": "采集配置已更新", "data": {"id": cfg.id}}
 
 
@@ -89,7 +89,7 @@ async def delete_config(
     user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await MonitorService.delete_config(db, config_id)
+    await MonitorService.delete_config(db, config_id, user)
     return {"status": 0, "msg": "采集配置已删除"}
 
 

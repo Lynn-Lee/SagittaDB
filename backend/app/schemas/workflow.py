@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class WorkflowCreateRequest(BaseModel):
     workflow_name: str = Field(..., min_length=1, max_length=50)
-    group_id: int
+    group_id: int | None = None
     instance_id: int
     db_name: str
     sql_content: str = Field(..., min_length=1)

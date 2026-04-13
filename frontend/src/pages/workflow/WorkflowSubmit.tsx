@@ -5,9 +5,9 @@ import { RobotOutlined } from '@ant-design/icons'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { instanceApi } from '@/api/instance'
-import { resourceGroupApi } from '@/api/system'
 import { workflowApi } from '@/api/workflow'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -53,14 +53,9 @@ export default function WorkflowSubmit() {
     queryFn: () => instanceApi.listRegisteredDbs(instanceId!),
     enabled: !!instanceId,
   })
-  const { data: rgData } = useQuery({
-    queryKey: ['resource-groups'],
-    queryFn: () => resourceGroupApi.list({ page_size: 100 }),
-  })
-
   const submitMut = useMutation({
     mutationFn: workflowApi.create,
-    onSuccess: (data) => {
+    onSuccess: (data: { data: { id: number } }) => {
       msgApi.success('工单提交成功')
       setTimeout(() => navigate(`/workflow/${data.data.id}`), 1000)
     },
@@ -110,13 +105,13 @@ export default function WorkflowSubmit() {
           <Form.Item name="workflow_name" label="工单名称" rules={[{ required: true }]}>
             <Input placeholder="简明描述本次变更内容" />
           </Form.Item>
-          <Space style={{ width: '100%', display: 'flex' }}>
+          <Space style={{ width: '100%', display: 'flex' }} align="start">
             <Form.Item label="实例" style={{ flex: 1 }} required>
               <Select placeholder="选择实例" onChange={(v) => { setInstanceId(v); setDbName('') }}
                 showSearch optionFilterProp="label" popupMatchSelectWidth={false}>
                 {instanceData?.items?.map((i: any) => (
                   <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>
-                    <Tag color="blue">{i.db_type.toUpperCase()}</Tag> {i.instance_name}
+                    <Tag color="blue">{formatDbTypeLabel(i.db_type)}</Tag> {i.instance_name}
                   </Option>
                 ))}
               </Select>
@@ -139,12 +134,14 @@ export default function WorkflowSubmit() {
                   ))}
               </Select>
             </Form.Item>
-            <Form.Item name="group_id" label="资源组" style={{ flex: 1 }} rules={[{ required: true }]}>
-              <Select placeholder="选择资源组">
-                {rgData?.items?.map((rg: any) => <Option key={rg.id} value={rg.id}>{rg.group_name}</Option>)}
-              </Select>
-            </Form.Item>
           </Space>
+          <Alert
+            type="info"
+            showIcon
+            message="资源组已按你的用户组权限自动解析"
+            description="提交工单时只需选择自己可访问的实例和数据库。系统会根据“用户组 → 资源组 → 实例”的权限链路自动绑定资源组。"
+            style={{ marginTop: 4 }}
+          />
         </Form>
       </Card>
 
@@ -166,7 +163,8 @@ export default function WorkflowSubmit() {
       {checkResults.length > 0 && (
         <Card title="预检查结果" style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)', marginBottom: 16 }}
           styles={{ body: { padding: 0 } }}>
-          <Table dataSource={checkResults} columns={checkColumns} rowKey="id" size="small" pagination={false} />
+          <Table dataSource={checkResults} columns={checkColumns} rowKey="id" size="small"
+            tableLayout="fixed" scroll={{ x: 900 }} pagination={false} />
         </Card>
       )}
 

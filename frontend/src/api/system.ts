@@ -2,8 +2,47 @@ import apiClient from './client'
 
 // ── 用户 ──────────────────────────────────────────────────────
 export const userApi = {
-  list: (params?: { page?: number; page_size?: number; search?: string; is_active?: boolean }) =>
-    apiClient.get('/system/users/', { params }).then(r => r.data),
+  list: (params?: {
+    page?: number
+    page_size?: number
+    search?: string
+    is_active?: boolean
+    role_ids?: number[]
+    user_group_ids?: number[]
+    departments?: string[]
+    titles?: string[]
+    statuses?: boolean[]
+  }) =>
+    apiClient.get('/system/users/', {
+      params,
+      paramsSerializer: { indexes: null },
+    }).then(r => r.data),
+
+  export: (params?: {
+    export_format?: 'xlsx' | 'csv'
+    search?: string
+    is_active?: boolean
+    role_ids?: number[]
+    user_group_ids?: number[]
+    departments?: string[]
+    titles?: string[]
+    statuses?: boolean[]
+    user_ids?: number[]
+  }) =>
+    apiClient.get('/system/users/export/', {
+      params,
+      responseType: 'blob',
+      paramsSerializer: { indexes: null },
+    }).then(r => ({
+      blob: r.data,
+      contentDisposition: r.headers['content-disposition'] as string | undefined,
+    })),
+
+  downloadTemplate: (params?: { export_format?: 'xlsx' | 'csv' }) =>
+    apiClient.get('/system/users/import-template/', { params, responseType: 'blob' }).then(r => ({
+      blob: r.data,
+      contentDisposition: r.headers['content-disposition'] as string | undefined,
+    })),
 
   get: (id: number) =>
     apiClient.get(`/system/users/${id}/`).then(r => r.data),
@@ -22,6 +61,15 @@ export const userApi = {
   delete: (id: number) =>
     apiClient.delete(`/system/users/${id}/`).then(r => r.data),
 
+  import: (file: File, defaultPassword: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('default_password', defaultPassword)
+    return apiClient.post('/system/users/import/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+
   grantPermissions: (id: number, permission_codes: string[]) =>
     apiClient.post(`/system/users/${id}/permissions/grant/`, { permission_codes }).then(r => r.data),
 
@@ -34,7 +82,13 @@ export const resourceGroupApi = {
   list: (params?: { page?: number; page_size?: number; search?: string }) =>
     apiClient.get('/system/resource-groups/', { params }).then(r => r.data),
 
-  create: (data: { group_name: string; group_name_cn?: string; ding_webhook?: string; feishu_webhook?: string }) =>
+  create: (data: {
+    group_name: string
+    group_name_cn?: string
+    instance_ids?: number[]
+    user_group_ids?: number[]
+    is_active?: boolean
+  }) =>
     apiClient.post('/system/resource-groups/', data).then(r => r.data),
 
   update: (id: number, data: any) =>

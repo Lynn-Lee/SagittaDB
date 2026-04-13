@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { workflowApi } from '@/api/workflow'
 import { instanceApi } from '@/api/instance'
+import { formatDbTypeLabel } from '@/utils/dbType'
 import dayjs from 'dayjs'
 
 const { Title, Text } = Typography
@@ -73,9 +74,8 @@ export default function WorkflowList() {
         </Tooltip>
       ),
     },
-    { title: '资源组', dataIndex: 'group_name', width: 100, ellipsis: true },
     {
-      title: '目标实例', key: 'instance', width: 150,
+      title: '目标实例', key: 'instance', width: 180,
       render: (_, r) => (
         <Text style={{ fontSize: 12, fontWeight: 500 }}>
           {r.instance_name || <Text type="secondary">ID:{r.instance_id}</Text>}
@@ -83,11 +83,11 @@ export default function WorkflowList() {
       ),
     },
     {
-      title: '数据库', dataIndex: 'db_name', width: 100,
+      title: '数据库', dataIndex: 'db_name', width: 140, ellipsis: true,
       render: (v) => v ? <Text style={{ fontSize: 12 }}>{v}</Text> : <Text type="secondary">—</Text>,
     },
     {
-      title: '提交人', key: 'engineer', width: 90,
+      title: '提交人', key: 'engineer', width: 140,
       render: (_, r) => r.engineer_display || r.engineer,
     },
     {
@@ -158,7 +158,7 @@ export default function WorkflowList() {
           >
             {instanceData?.items?.map((i: any) => (
               <Option key={i.id} value={i.id} label={i.instance_name}>
-                <Tag color="blue" style={{ fontSize: 11 }}>{i.db_type.toUpperCase()}</Tag>
+                <Tag color="blue" style={{ fontSize: 11 }}>{formatDbTypeLabel(i.db_type)}</Tag>
                 {i.instance_name}
               </Option>
             ))}
@@ -198,7 +198,8 @@ export default function WorkflowList() {
           columns={columns}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: 900 }}
+          tableLayout="fixed"
+          scroll={{ x: 980 }}
           pagination={{
             total: data?.total,
             current: page,

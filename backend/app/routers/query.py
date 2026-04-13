@@ -147,6 +147,27 @@ async def execute_query(
     }
 
 
+@router.post("/access-check/", summary="查询权限排查")
+async def explain_query_access(
+    data: QueryExecuteRequest,
+    user: dict = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    inst = await _load_instance(db, data.instance_id)
+    explanation = await QueryPrivService.explain_query_access(
+        db=db,
+        user=user,
+        instance=inst,
+        db_name=data.db_name,
+        sql=data.sql,
+    )
+    return {
+        "instance_id": data.instance_id,
+        "db_name": data.db_name,
+        **explanation,
+    }
+
+
 @router.get("/logs/", summary="查询日志列表")
 async def list_query_logs(
     instance_id: int | None = None,

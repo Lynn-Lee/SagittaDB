@@ -1,8 +1,10 @@
 """系统管理路由：用户、角色、用户组、资源组、权限、系统配置、审计日志（v2 授权体系）。"""
 
 import logging
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,10 +43,26 @@ async def list_users(
     page_size: int = Query(20, ge=1, le=200),
     search: str | None = None,
     is_active: bool | None = None,
+    role_ids: list[int] | None = Query(None),
+    user_group_ids: list[int] | None = Query(None),
+    departments: list[str] | None = Query(None),
+    titles: list[str] | None = Query(None),
+    statuses: list[bool] | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_perm("user_manage")),
 ):
-    total, items = await UserService.list_users(db, page, page_size, search, is_active)
+    total, items = await UserService.list_users(
+        db,
+        page,
+        page_size,
+        search,
+        is_active,
+        role_ids=role_ids,
+        user_group_ids=user_group_ids,
+        departments=departments,
+        titles=titles,
+        statuses=statuses,
+    )
     perms_map = {u.id: await UserService.get_merged_permissions(db, u.id, u) for u in items}
     return {
         "total": total,
@@ -56,6 +74,7 @@ async def list_users(
                 "username": u.username,
                 "display_name": u.display_name,
                 "email": u.email,
+                "phone": u.phone,
                 "is_active": u.is_active,
                 "is_superuser": u.is_superuser,
                 "auth_type": u.auth_type,
@@ -68,6 +87,8 @@ async def list_users(
                 if u.role and u.role.name_cn
                 else (u.role.name if u.role else None),
                 "manager_id": u.manager_id,
+                "manager_username": u.manager.username if u.manager else "",
+                "manager_display_name": u.manager.display_name if u.manager else "",
                 "employee_id": u.employee_id,
                 "department": u.department,
                 "title": u.title,
@@ -77,6 +98,62 @@ async def list_users(
             for u in items
         ],
     }
+
+
+@router.get("/users/export/", summary="导出用户")
+async def export_users(
+    export_format: str = Query("xlsx", pattern="^(xlsx|csv)$"),
+    search: str | None = None,
+    is_active: bool | None = None,
+    role_ids: list[int] | None = Query(None),
+    user_group_ids: list[int] | None = Query(None),
+    departments: list[str] | None = Query(None),
+    titles: list[str] | None = Query(None),
+    statuses: list[bool] | None = Query(None),
+    user_ids: list[int] | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_perm("user_manage")),
+):
+    rows = await UserService.export_users(
+        db,
+        search=search,
+        is_active=is_active,
+        role_ids=role_ids,
+        user_group_ids=user_group_ids,
+        departments=departments,
+        titles=titles,
+        statuses=statuses,
+        user_ids=user_ids,
+    )
+    content, media_type, filename = UserService.build_user_export_file(rows, export_format)
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+    return StreamingResponse(iter([content]), media_type=media_type, headers=headers)
+
+
+@router.get("/users/import-template/", summary="下载用户导入模板")
+async def download_user_import_template(
+    export_format: str = Query("xlsx", pattern="^(xlsx|csv)$"),
+    _user=Depends(require_perm("user_manage")),
+):
+    content, media_type, filename = UserService.build_user_import_template(export_format)
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+    return StreamingResponse(iter([content]), media_type=media_type, headers=headers)
+
+
+@router.post("/users/import/", summary="导入用户")
+async def import_users(
+    file: UploadFile = File(...),
+    default_password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_perm("user_manage")),
+):
+    result = await UserService.import_users(
+        db=db,
+        filename=file.filename or "",
+        content=await file.read(),
+        default_password=default_password,
+    )
+    return {"status": 0, "msg": "用户导入完成", "data": result}
 
 
 @router.post("/users/", summary="创建用户")
@@ -455,6 +532,10 @@ async def list_resource_groups(
                 "tenant_id": rg.tenant_id,
                 "member_count": mc,
                 "user_group_count": len(ugs),
+                "user_groups": [
+                    {"id": g.id, "name": g.name, "name_cn": g.name_cn}
+                    for g in ugs
+                ],
                 "instances": instances,
             }
         )

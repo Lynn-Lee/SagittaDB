@@ -11,6 +11,7 @@ import {
   Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -203,7 +204,7 @@ export default function DashboardPage() {
                     <PieChart>
                       <Pie data={dist} dataKey="count" nameKey="db_type" cx="50%" cy="50%"
                         outerRadius={55}
-                        label={({ db_type, percent }) => `${db_type} ${(percent*100).toFixed(0)}%`}
+                        label={({ db_type, percent }) => `${formatDbTypeLabel(db_type)} ${(percent*100).toFixed(0)}%`}
                         labelLine={false}>
                         {dist.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Pie>

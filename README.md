@@ -1,7 +1,7 @@
 # SagittaDB 矢准数据
 
 > **矢向数据，精准管控**
-> 企业级多引擎数据库管控平台 · 基于 Archery v1.14.0 深度重构 · v1.0-GA
+> 企业级多引擎数据库管控平台 · 基于 Archery v1.14.0 深度重构 · v1.0-GA + v2-lite 权限收敛
 
 ---
 
@@ -10,9 +10,10 @@
 SagittaDB 通过统一的 Web 界面，帮助 DBA 和研发团队安全、高效地完成 SQL 审核上线、在线查询、慢日志分析、数据库监控等全流程数据库管理工作。
 
 - **安全**：修复原 Archery 5 个 P0 安全漏洞，Token 黑名单 fail-close，所有敏感字段 Fernet/AES 加密存储
-- **全面**：支持 11 种数据库引擎（MySQL / PgSQL / Oracle / MongoDB / Redis / ClickHouse 等）
-- **高效**：AI Text2SQL + 工单模板 + 多级自定义审批流，全异步 Celery 执行不阻塞
+- **全面**：支持 11 种数据库引擎（MySQL / PostgreSQL / Oracle / MongoDB / Redis / ClickHouse 等）
+- **高效**：AI Text2SQL + 工单模板 + 自定义审批流，全异步 Celery 执行不阻塞
 - **可观测**：内建 Prometheus + Grafana 监控，全流程操作审计
+- **可解释权限**：v2-lite 权限体系已落地，权限拒绝可定位到身份 / 资源范围 / 数据授权层
 
 ## 技术栈
 
@@ -74,14 +75,57 @@ SagittaDB/
 | Pack G | 全链路测试、性能测试、安全扫描 | ✅ 100% |
 | Pack H | Helm Chart、CI/CD、生产环境配置 | ✅ 100% |
 | Security Hardening | Token 黑名单 fail-close、SECRET_KEY 强制校验、AI 路由注册 | ✅ 100% |
-| 多级审批流 | 管理员自定义审批节点 + 前端管理页面 | ✅ 100% |
+| 多级审批流 | v2-lite：`users / manager / any_reviewer` 已落地 | ✅ 100% |
 | 数据库权限管控 | is_active 启停控制、普通用户不可见禁用库、管理员标灰"已禁用" | ✅ 100% |
+| 授权体系 v2-lite | 角色权限、用户组资源范围、库/表级查询授权、权限排查接口 | ✅ 100% |
 | Bug 修复 | MySQL DictCursor 修复、PG 表缺失修复、前端下拉框截断修复 | ✅ 100% |
 
 **总体完成度：100%（v1.0-GA）**
 
 详细进度请见 [docs/sagittadb_progress.md](docs/sagittadb_progress.md)
 产品需求文档请见 [docs/sagittadb_prd.md](docs/sagittadb_prd.md)
+权限设计与收敛方案请见 [docs/sagittadba_auth_redesign_v2.md](docs/sagittadba_auth_redesign_v2.md)
+
+## 权限体系（v2-lite）
+
+当前权限体系采用 5 层职责拆分：
+
+1. `is_superuser`：身份层，超管直接绕过检查。
+2. `Role -> Permission`：功能权限层，决定能做什么。
+3. `UserGroup -> ResourceGroup -> Instance`：资源范围层，决定能看到哪些实例。
+4. `QueryPrivilege(database|table)`：数据授权层，首发仅支持授权给用户本人。
+5. `ApprovalFlow(users|manager|any_reviewer)`：审批流层，决定谁来审。
+
+首发范围内已落地的关键行为：
+
+- 前端菜单和页面访问统一按权限码渲染与拦截
+- `developer` 默认不显示监控、运维、系统管理入口
+- `dba_group` 不具备全局实例能力，只在所属资源组范围内工作
+- 查询权限只保留库级 / 表级，且必须先通过实例范围校验
+- 查询拒绝时可通过 `POST /api/v1/query/access-check/` 返回拒绝层级与原因
+- 用户管理支持 Excel / CSV 批量导入导出，导出文件可直接修改后回灌
+- 用户管理页内支持统一筛选与直接导出：关键词（含电话号码）、角色、用户组、部门、职位、状态
+- SQL 工单提交页不再要求用户手动选择资源组，系统会按“用户组 → 资源组 → 实例”自动解析归属资源组
+
+## 最近验证
+
+本次 v2-lite 收敛相关验证已通过：
+
+```bash
+cd frontend && npm run typecheck
+cd backend && python3 -m compileall app
+cd backend && ./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py
+```
+
+近期补充完成并已联调验证的权限与交互收口：
+
+- 资源组主弹窗只保留“实例范围 + 关联用户组 + 状态”，移除了资源组级 Webhook
+- 停用资源组不能再被用户组新关联，前端与后端双重拦截
+- 用户组列表新增“关联资源组”列，资源组列表直接展示关联用户组标签
+- 用户组列表新增“组长 / 上级组”列，列表信息与表单配置口径一致
+- 浏览器标题统一为 `矢 准 数 据`
+- 前端数据库类型显示统一为官方命名：`MySQL / PostgreSQL / Oracle / TiDB / Doris / ClickHouse / MongoDB / Cassandra / Redis / Elasticsearch / OpenSearch`
+- 核心后台表格页已统一固定列宽、横向滚动基线、长文本省略与关键业务字段展示
 
 ## 开发指南
 

@@ -14,7 +14,13 @@ export interface UserInfo {
   is_superuser: boolean
   totp_enabled: boolean
   permissions: string[]
+  role?: string | null
+  role_id?: number | null
   resource_groups: number[]
+  user_groups?: number[]
+  department?: string
+  title?: string
+  employee_id?: string
   tenant_id: number
 }
 

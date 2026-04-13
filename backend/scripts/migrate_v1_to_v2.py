@@ -33,6 +33,8 @@ from app.models.user import Permission, Users, user_permission, user_resource_gr
 SUPERADMIN_PERMS = {
     "menu_dashboard",
     "menu_sqlworkflow",
+    "menu_query",
+    "menu_ops",
     "sql_submit",
     "sql_review",
     "sql_execute",
@@ -54,6 +56,8 @@ SUPERADMIN_PERMS = {
     "archive_apply",
     "archive_review",
     "audit_user",
+    "menu_system",
+    "menu_audit",
     "system_config_manage",
     "instance_manage",
     "resource_group_manage",
@@ -63,6 +67,8 @@ SUPERADMIN_PERMS = {
 DBA_PERMS = {
     "menu_dashboard",
     "menu_sqlworkflow",
+    "menu_query",
+    "menu_ops",
     "sql_submit",
     "sql_review",
     "sql_execute",
@@ -82,6 +88,8 @@ DBA_PERMS = {
     "monitor_alert_manage",
     "archive_apply",
     "archive_review",
+    "audit_user",
+    "menu_audit",
     "instance_manage",
     "resource_group_manage",
 }
@@ -89,6 +97,8 @@ DBA_PERMS = {
 DBA_GROUP_PERMS = {
     "menu_dashboard",
     "menu_sqlworkflow",
+    "menu_query",
+    "menu_ops",
     "sql_submit",
     "sql_review",
     "sql_execute",
@@ -101,9 +111,13 @@ DBA_GROUP_PERMS = {
     "process_view",
     "process_kill",
     "menu_monitor",
+    "monitor_config_manage",
     "monitor_apply",
     "monitor_review",
     "archive_apply",
+    "archive_review",
+    "audit_user",
+    "menu_audit",
     "instance_manage",
     "resource_group_manage",
 }
@@ -111,13 +125,10 @@ DBA_GROUP_PERMS = {
 DEVELOPER_PERMS = {
     "menu_dashboard",
     "menu_sqlworkflow",
+    "menu_query",
     "sql_submit",
     "query_submit",
     "query_applypriv",
-    "process_view",
-    "menu_monitor",
-    "monitor_apply",
-    "archive_apply",
 }
 
 

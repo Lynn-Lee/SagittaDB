@@ -21,16 +21,17 @@ const UserGroupManagement: React.FC = () => {
 
   const { data: usersData } = useQuery({
     queryKey: ['all-users'],
-    queryFn: () => userApi.list({ page: 1, page_size: 500 }),
+    queryFn: () => userApi.list({ page: 1, page_size: 200, is_active: true }),
   })
 
   const { data: rgsData } = useQuery({
     queryKey: ['all-resource-groups'],
-    queryFn: () => resourceGroupApi.list({ page: 1, page_size: 500 }),
+    queryFn: () => resourceGroupApi.list({ page: 1, page_size: 200 }),
   })
 
   const allUsers = usersData?.items ?? []
-  const allRgs = rgsData?.items ?? []
+  const allRgItems = rgsData?.items ?? []
+  const allRgs = allRgItems.filter((rg: any) => rg.is_active)
   const filtered = (groupsData?.items ?? []).filter((g: any) =>
     !search || g.name.includes(search) || g.name_cn?.includes(search),
   )
@@ -45,11 +46,22 @@ const UserGroupManagement: React.FC = () => {
     title: rg.group_name_cn || rg.group_name,
   }))
 
+  const activeResourceGroupIds = new Set(allRgs.map((rg: any) => rg.id))
+
+  const resourceGroupNameMap = new Map<number, string>(
+    allRgItems.map((rg: any) => [
+      rg.id,
+      `${rg.group_name_cn || rg.group_name}${rg.is_active ? '' : '（已停用）'}`,
+    ]),
+  )
+
   const createMut = useMutation({
     mutationFn: (data: any) => userGroupApi.create(data),
     onSuccess: () => {
       messageApi.success('用户组创建成功')
       qc.invalidateQueries({ queryKey: ['user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups-for-rg'] })
       setModalOpen(false)
       form.resetFields()
     },
@@ -61,6 +73,8 @@ const UserGroupManagement: React.FC = () => {
     onSuccess: () => {
       messageApi.success('用户组已更新')
       qc.invalidateQueries({ queryKey: ['user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups-for-rg'] })
       setModalOpen(false)
       form.resetFields()
       setEditId(null)
@@ -73,6 +87,8 @@ const UserGroupManagement: React.FC = () => {
     onSuccess: () => {
       messageApi.success('用户组已删除')
       qc.invalidateQueries({ queryKey: ['user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups-for-rg'] })
     },
     onError: (e: any) => messageApi.error(e.response?.data?.detail || '删除失败'),
   })
@@ -80,6 +96,10 @@ const UserGroupManagement: React.FC = () => {
   const openCreate = () => {
     setEditId(null)
     form.resetFields()
+    form.setFieldsValue({
+      member_ids: [],
+      resource_group_ids: [],
+    })
     setModalOpen(true)
   }
 
@@ -93,7 +113,9 @@ const UserGroupManagement: React.FC = () => {
       parent_id: group.parent_id,
       is_active: group.is_active,
       member_ids: (group.member_ids ?? []).map(String),
-      resource_group_ids: (group.resource_group_ids ?? []).map(String),
+      resource_group_ids: (group.resource_group_ids ?? [])
+        .filter((id: number) => activeResourceGroupIds.has(id))
+        .map(String),
     })
     setModalOpen(true)
   }
@@ -118,12 +140,47 @@ const UserGroupManagement: React.FC = () => {
     value: g.id, label: g.name_cn || g.name,
   }))
 
+  const userNameMap = new Map<number, string>(
+    allUsers.map((u: any) => [u.id, u.display_name || u.username]),
+  )
+
+  const groupNameMap = new Map<number, string>(
+    (groupsData?.items ?? []).map((g: any) => [g.id, g.name_cn || g.name]),
+  )
+
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '组标识', dataIndex: 'name', width: 150 },
-    { title: '中文名', dataIndex: 'name_cn', width: 150 },
-    { title: '描述', dataIndex: 'description', ellipsis: true },
+    { title: 'ID', dataIndex: 'id', width: 70 },
+    { title: '组标识', dataIndex: 'name', width: 140, ellipsis: true },
+    { title: '中文名', dataIndex: 'name_cn', width: 140, ellipsis: true },
+    {
+      title: '组长',
+      dataIndex: 'leader_id',
+      width: 130,
+      render: (leaderId: number | null | undefined) =>
+        leaderId ? userNameMap.get(leaderId) || `用户#${leaderId}` : <span style={{ color: '#999' }}>未设置</span>,
+    },
+    {
+      title: '上级组',
+      dataIndex: 'parent_id',
+      width: 140,
+      render: (parentId: number | null | undefined) =>
+        parentId ? groupNameMap.get(parentId) || `用户组#${parentId}` : <span style={{ color: '#999' }}>顶级组</span>,
+    },
+    { title: '描述', dataIndex: 'description', width: 220, ellipsis: true },
     { title: '成员数', dataIndex: 'member_count', width: 90 },
+    {
+      title: '关联资源组', dataIndex: 'resource_group_ids', width: 260,
+      render: (ids: number[] = []) => {
+        if (!ids.length) return <span style={{ color: '#999' }}>未关联</span>
+        return (
+          <Space wrap size={[4, 4]}>
+            {ids.map((id) => (
+              <Tag key={id}>{resourceGroupNameMap.get(id) || `资源组#${id}`}</Tag>
+            ))}
+          </Space>
+        )
+      },
+    },
     {
       title: '状态', dataIndex: 'is_active', width: 80,
       render: (v: boolean) => v ? <Tag color="green">启用</Tag> : <Tag color="red">停用</Tag>,
@@ -162,6 +219,8 @@ const UserGroupManagement: React.FC = () => {
           columns={columns}
           dataSource={filtered}
           loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 1180 }}
           pagination={false}
           size="middle"
         />
@@ -217,7 +276,12 @@ const UserGroupManagement: React.FC = () => {
             </Col>
           </Row>
 
-          <Form.Item name="member_ids" label="组成员">
+          <Form.Item
+            name="member_ids"
+            label="组成员"
+            valuePropName="targetKeys"
+            getValueFromEvent={(nextTargetKeys) => nextTargetKeys}
+          >
             <Transfer
               dataSource={userTransferSource}
               render={(item) => item.title!}
@@ -228,11 +292,18 @@ const UserGroupManagement: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item name="resource_group_ids" label="关联资源组">
+          <Form.Item
+            name="resource_group_ids"
+            label="关联资源组"
+            valuePropName="targetKeys"
+            getValueFromEvent={(nextTargetKeys) => nextTargetKeys}
+          >
             <Transfer
               dataSource={rgTransferSource}
               render={(item) => item.title!}
               titles={['可选资源组', '已关联']}
+              showSearch
+              filterOption={(input, item) => (item.title ?? '').toLowerCase().includes(input.toLowerCase())}
               listStyle={{ width: 280, height: 300 }}
             />
           </Form.Item>

@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { instanceApi, type InstanceItem } from '@/api/instance'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -18,10 +19,10 @@ const { Option } = Select
 const DB_TYPE_COLORS: Record<string, string> = {
   mysql: 'blue', pgsql: 'geekblue', oracle: 'red', mongo: 'green',
   redis: 'volcano', clickhouse: 'orange', elasticsearch: 'gold',
-  mssql: 'cyan', cassandra: 'purple', doris: 'magenta',
+  opensearch: 'lime', mssql: 'cyan', cassandra: 'purple', doris: 'magenta', tidb: 'red',
 }
 const DB_TYPES = ['mysql', 'pgsql', 'oracle', 'mongo', 'redis',
-  'clickhouse', 'elasticsearch', 'mssql', 'cassandra', 'doris']
+  'clickhouse', 'elasticsearch', 'opensearch', 'mssql', 'cassandra', 'doris', 'tidb']
 
 // ── 数据库管理子组件 ───────────────────────────────────────
 function InstanceDatabasePanel({ instance }: { instance: InstanceItem }) {
@@ -74,10 +75,10 @@ function InstanceDatabasePanel({ instance }: { instance: InstanceItem }) {
 
   const columns: ColumnsType<any> = [
     {
-      title: dbLabel + '名称', dataIndex: 'db_name',
+      title: dbLabel + '名称', dataIndex: 'db_name', width: 180,
       render: (v: string) => <Tag color="blue" style={{ fontFamily: 'monospace' }}>{v}</Tag>,
     },
-    { title: '备注', dataIndex: 'remark', ellipsis: true,
+    { title: '备注', dataIndex: 'remark', width: 220, ellipsis: true,
       render: (v: string) => v || <Text type="secondary">—</Text> },
     {
       title: '状态', dataIndex: 'is_active', width: 90,
@@ -135,6 +136,8 @@ function InstanceDatabasePanel({ instance }: { instance: InstanceItem }) {
         rowKey="id"
         loading={isLoading}
         size="small"
+        tableLayout="fixed"
+        scroll={{ x: 760 }}
         pagination={{ pageSize: 20, showSizeChanger: false }}
       />
 
@@ -224,7 +227,7 @@ export default function InstanceList() {
   const columns: ColumnsType<InstanceItem> = [
     { title: 'ID', dataIndex: 'id', width: 55 },
     {
-      title: '实例名称', dataIndex: 'instance_name',
+      title: '实例名称', dataIndex: 'instance_name', width: 210,
       render: (v: string, r: InstanceItem) => (
         <Space direction="vertical" size={0}>
           <Text strong>{v}</Text>
@@ -234,10 +237,18 @@ export default function InstanceList() {
     },
     {
       title: '类型', dataIndex: 'db_type', width: 110,
-      render: (v: string) => <Tag color={DB_TYPE_COLORS[v] || 'default'}>{v.toUpperCase()}</Tag>,
+      render: (v: string) => <Tag color={DB_TYPE_COLORS[v] || 'default'}>{formatDbTypeLabel(v)}</Tag>,
+    },
+    {
+      title: '连接用户', dataIndex: 'user', width: 120,
+      render: (v: string) => v || <Text type="secondary">—</Text>,
     },
     { title: '默认库', dataIndex: 'db_name', width: 110,
       render: (v: string) => v || <Text type="secondary">—</Text> },
+    {
+      title: '备注', dataIndex: 'remark', width: 220, ellipsis: true,
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
     {
       title: '状态', dataIndex: 'is_active', width: 80,
       render: (v: boolean) => v ? <Tag color="success">正常</Tag> : <Tag>停用</Tag>,
@@ -293,6 +304,8 @@ export default function InstanceList() {
         styles={{ body: { padding: 0 } }}>
         <Table dataSource={data?.items} columns={columns} rowKey="id"
           loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 1080 }}
           pagination={{ total: data?.total, pageSize: 20, showSizeChanger: false }} />
       </Card>
 
@@ -308,7 +321,7 @@ export default function InstanceList() {
           <Space style={{ width: '100%', display: 'flex' }}>
             <Form.Item name="db_type" label="数据库类型" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select placeholder="选择类型">
-                {DB_TYPES.map(t => <Option key={t} value={t}><Tag color={DB_TYPE_COLORS[t]}>{t.toUpperCase()}</Tag></Option>)}
+                {DB_TYPES.map(t => <Option key={t} value={t}><Tag color={DB_TYPE_COLORS[t]}>{formatDbTypeLabel(t)}</Tag></Option>)}
               </Select>
             </Form.Item>
             <Form.Item name="type" label="主从类型" initialValue="master" style={{ flex: 1 }}>

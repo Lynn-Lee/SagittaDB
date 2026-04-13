@@ -8,7 +8,8 @@ import {
 import Editor from '@monaco-editor/react'
 import { useQuery } from '@tanstack/react-query'
 import { instanceApi } from '@/api/instance'
-import { queryApi, type QueryResult } from '@/api/query'
+import { queryApi, type QueryAccessExplanation, type QueryResult } from '@/api/query'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Text } = Typography
 const { Option } = Select
@@ -32,6 +33,7 @@ export default function QueryPage() {
   const [sql, setSql] = useState<string>('SELECT 1')
   const [limitNum, setLimitNum] = useState<number>(100)
   const [result, setResult] = useState<QueryResult | null>(null)
+  const [accessExplanation, setAccessExplanation] = useState<QueryAccessExplanation | null>(null)
   const [executing, setExecuting] = useState(false)
   const [msgApi, msgCtx] = message.useMessage()
 
@@ -53,6 +55,7 @@ export default function QueryPage() {
 
     setExecuting(true)
     setResult(null)
+    setAccessExplanation(null)
     try {
       const res = await queryApi.execute({ instance_id: instanceId, db_name: dbName, sql, limit_num: limitNum })
       setResult(res)
@@ -62,7 +65,23 @@ export default function QueryPage() {
         msgApi.success(`查询成功，${res.affected_rows} 行，耗时 ${res.cost_time_ms}ms`)
       }
     } catch (e: any) {
-      msgApi.error(e.response?.data?.msg || e.response?.data?.detail || '查询失败')
+      const detail = e.response?.data?.msg || e.response?.data?.detail || '查询失败'
+      if (e.response?.status === 403) {
+        try {
+          const explanation = await queryApi.explainAccess({
+            instance_id: instanceId,
+            db_name: dbName,
+            sql,
+            limit_num: limitNum,
+          })
+          setAccessExplanation(explanation)
+          msgApi.error(explanation.reason || detail)
+        } catch {
+          msgApi.error(detail)
+        }
+      } else {
+        msgApi.error(detail)
+      }
     } finally {
       setExecuting(false)
     }
@@ -94,7 +113,7 @@ export default function QueryPage() {
             {instanceData?.items?.map((inst: any) => (
               <Option key={inst.id} value={inst.id} label={inst.instance_name} style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
                 <Space>
-                  <Tag color="blue" style={{ fontSize: 11 }}>{inst.db_type.toUpperCase()}</Tag>
+                  <Tag color="blue" style={{ fontSize: 11 }}>{formatDbTypeLabel(inst.db_type)}</Tag>
                   {inst.instance_name}
                 </Space>
               </Option>
@@ -142,6 +161,15 @@ export default function QueryPage() {
         ) : <Space><HistoryOutlined /><span>结果</span></Space>}
         style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}
         styles={{ body: { padding: 0 } }}>
+        {accessExplanation && !result && !executing && (
+          <Alert
+            type="warning"
+            showIcon
+            message="权限排查"
+            description={`拒绝层级：${accessExplanation.layer}；原因：${accessExplanation.reason}`}
+            style={{ margin: 16, borderRadius: 8 }}
+          />
+        )}
         {executing && <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spin tip="执行中..." /></div>}
         {result && !executing && (
           result.error
@@ -149,7 +177,7 @@ export default function QueryPage() {
             : <Table dataSource={resultRows} columns={resultColumns} size="small"
                 scroll={{ x: 'max-content', y: 300 }} pagination={false} />
         )}
-        {!result && !executing && (
+        {!result && !executing && !accessExplanation && (
           <div style={{ padding: 40, textAlign: 'center', color: '#AEAEB2' }}>选择实例和数据库，输入 SQL 后点击执行</div>
         )}
       </Card>

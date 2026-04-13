@@ -91,7 +91,7 @@ export default function WorkflowTemplatePage() {
 
   const columns = [
     {
-      title: '模板名称', dataIndex: 'template_name',
+      title: '模板名称', dataIndex: 'template_name', width: 240,
       render: (v: string, r: any) => (
         <Space direction="vertical" size={0}>
           <Text strong>{v}</Text>
@@ -100,7 +100,7 @@ export default function WorkflowTemplatePage() {
       ),
     },
     {
-      title: '默认实例/库', key: 'target', width: 160,
+      title: '默认实例/库', key: 'target', width: 200,
       render: (_: any, r: any) => r.instance_id ? (
         <Space direction="vertical" size={0}>
           <Text style={{ fontSize: 12 }}>ID:{r.instance_id}</Text>
@@ -117,6 +117,10 @@ export default function WorkflowTemplatePage() {
       ),
     },
     {
+      title: '创建人', dataIndex: 'created_by', width: 120,
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
+    {
       title: '可见范围', dataIndex: 'visibility', width: 90,
       render: (v: string) => v === 'public'
         ? <Tag color="blue">公开</Tag>
@@ -125,6 +129,10 @@ export default function WorkflowTemplatePage() {
     {
       title: '使用次数', dataIndex: 'use_count', width: 80,
       render: (v: number) => <Badge count={v} showZero color="#1558A8" />,
+    },
+    {
+      title: '创建时间', dataIndex: 'created_at', width: 160,
+      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '—',
     },
     {
       title: '操作', width: 140,
@@ -158,6 +166,8 @@ export default function WorkflowTemplatePage() {
       <Card style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}
         styles={{ body: { padding: 0 } }}>
         <Table dataSource={data?.items} columns={columns} rowKey="id" loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 1260 }}
           pagination={{ total: data?.total, pageSize: 20, showSizeChanger: false }} />
       </Card>
 

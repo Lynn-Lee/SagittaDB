@@ -1,10 +1,10 @@
 """
 查询权限与查询日志模型。
 
-v2 变更：
-- QueryPrivilege 新增 user_group_id（用户组授权）、scope_type（授权粒度）、resource_group_id
-- QueryPrivilegeApply 新增 user_group_id、scope_type、resource_group_id
-- scope_type 枚举：resource_group / instance / database / table
+v2-lite 首发口径：
+- 查询授权主路径仅启用用户主体
+- scope_type 首发仅使用 database / table
+- user_group_id / resource_group_id 作为兼容位保留
 """
 
 from datetime import date
@@ -18,11 +18,11 @@ from app.models.base import BaseModel
 class QueryPrivilege(BaseModel):
     """查询权限记录（库级或表级）。
 
-    v2 支持授权给用户或用户组，粒度扩展到四级：
-    - resource_group: 资源组下所有实例
-    - instance: 单实例
-    - database: 单库
-    - table: 单表
+    v2-lite 首发：
+    - 授权主体：用户
+    - 授权粒度：database / table
+
+    user_group_id / resource_group_id 仅作为兼容字段保留。
     """
 
     __tablename__ = "query_privilege"
@@ -44,19 +44,19 @@ class QueryPrivilege(BaseModel):
         Integer,
         ForeignKey("sql_instance.id", ondelete="CASCADE"),
         nullable=True,
-        comment="实例ID（scope_type=instance/database/table 时非空）",
+        comment="实例ID（scope_type=database/table 时非空）",
     )
     resource_group_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("resource_group.id", ondelete="CASCADE"),
         nullable=True,
-        comment="资源组ID（scope_type=resource_group 时非空）",
+        comment="资源组ID（兼容预留字段）",
     )
-    # scope_type 取值：resource_group / instance / database / table
+    # scope_type 首发仅使用：database / table
     scope_type: Mapped[str] = mapped_column(
         String(20),
-        default="instance",
-        comment="授权粒度: resource_group|instance|database|table",
+        default="database",
+        comment="授权粒度: database|table（兼容预留更细粒度）",
     )
     db_name: Mapped[str] = mapped_column(String(64), default="", comment="数据库名")
     table_name: Mapped[str] = mapped_column(String(64), default="", comment="表名（空=库级权限）")
@@ -84,7 +84,7 @@ class QueryPrivilege(BaseModel):
 class QueryPrivilegeApply(BaseModel):
     """查询权限申请表（走审批流）。
 
-    v2 新增 user_group_id / scope_type / resource_group_id。
+    v2-lite 首发仅申请用户自己的 database / table 查询权限。
     """
 
     __tablename__ = "query_privilege_apply"
@@ -98,27 +98,27 @@ class QueryPrivilegeApply(BaseModel):
         Integer,
         ForeignKey("user_group.id", ondelete="SET NULL"),
         nullable=True,
-        comment="授权给用户组（为空则授权给用户自己）",
+        comment="授权给用户组（兼容预留，为空则授权给用户自己）",
     )
     instance_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("sql_instance.id", ondelete="CASCADE"),
         nullable=True,
-        comment="实例ID（scope_type=instance/database/table 时非空）",
+        comment="实例ID（scope_type=database/table 时非空）",
     )
     resource_group_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("resource_group.id", ondelete="SET NULL"),
         nullable=True,
-        comment="资源组ID（scope_type=resource_group 时非空）",
+        comment="资源组ID（兼容预留字段）",
     )
     # 保留 group_id 向后兼容（值等于 resource_group_id）
     group_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="资源组ID（兼容旧字段）")
-    # scope_type 取值：resource_group / instance / database / table
+    # scope_type 首发仅使用：database / table
     scope_type: Mapped[str] = mapped_column(
         String(20),
-        default="instance",
-        comment="申请粒度: resource_group|instance|database|table",
+        default="database",
+        comment="申请粒度: database|table（兼容预留更细粒度）",
     )
     db_name: Mapped[str] = mapped_column(String(64), default="", comment="数据库名")
     table_name: Mapped[str] = mapped_column(String(64), default="", comment="表名")

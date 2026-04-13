@@ -9,6 +9,14 @@ export interface QueryResult {
   error: string
 }
 
+export interface QueryAccessExplanation {
+  instance_id: number
+  db_name: string
+  allowed: boolean
+  reason: string
+  layer: 'identity' | 'resource_scope' | 'data_scope'
+}
+
 export const queryApi = {
   execute: (data: {
     instance_id: number
@@ -16,6 +24,13 @@ export const queryApi = {
     sql: string
     limit_num?: number
   }) => apiClient.post<QueryResult>('/query/', data).then(r => r.data),
+
+  explainAccess: (data: {
+    instance_id: number
+    db_name: string
+    sql: string
+    limit_num?: number
+  }) => apiClient.post<QueryAccessExplanation>('/query/access-check/', data).then(r => r.data),
 
   getLogs: (params?: {
     instance_id?: number
@@ -33,9 +48,10 @@ export const queryApi = {
   applyPrivilege: (data: {
     title: string
     instance_id: number
-    group_id: number
+    group_id?: number
     db_name: string
     table_name?: string
+    scope_type?: 'database' | 'table'
     valid_date: string
     limit_num?: number
     priv_type?: number

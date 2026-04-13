@@ -1,7 +1,7 @@
 # SagittaDB 授权体系重设计方案 v2
 
 > **版本：** v1.0 · 2026-04-12
-> **状态：** 规划中（Phase 1~4 渐进迁移）
+> **状态：** v2-lite 已落地并进入本地验收阶段（优先交付可解释、可测试、可落地版本）
 > **前置文档：** [sagittadb_auth_design.md](sagittadb_auth_design.md)（v1 现状分析）
 
 ---
@@ -25,12 +25,11 @@
 │      用户继承所属用户组的资源组访问权                              │
 ├─────────────────────────────────────────────────────────────────┤
 │  L4  数据级权限层                   QueryPrivilege                │
-│      授权主体：用户 或 用户组                                     │
-│      授权范围：资源组 / 实例 / 库 / 表 四级粒度                    │
-│      有效期控制                                                   │
+│      首发仅支持：用户主体 + 库/表两级粒度                          │
+│      实例范围由资源组链路承担，数据授权只补充“能查哪些库/表”        │
 ├─────────────────────────────────────────────────────────────────┤
 │  L5  审批流层                      ApprovalFlow + 自动节点        │
-│      节点类型：直属上级 / 指定用户 / 用户组 / 角色持有者           │
+│      首发节点：直属上级 / 指定用户 / 任意审批员                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -43,9 +42,9 @@
 | `superadmin` | 超级管理员 | ✅ | `is_superuser=True`，绕过一切检查 | 平台管理员 |
 | `dba` | 全局 DBA | ✅ | 包含 `query_all_instances` + `monitor_all_instances`，可见所有实例 | 基础设施 DBA |
 | `dba_group` | 资源组 DBA | ✅ | **不含** `query_all_instances` + `monitor_all_instances`，实例范围限于资源组 | 业务 DBA、外包 DBA |
-| `developer` | 开发工程师 | ✅ | `sql_submit` + `query_submit` + `query_applypriv`，需授权才能查库 | 研发工程师 |
+| `developer` | 开发工程师 | ✅ | `sql_submit` + `query_submit` + `query_applypriv`，不默认拥有监控/运维入口 | 研发工程师 |
 
-### dba 与 dba_group 共有的运维权限码
+### dba 与 dba_group 共有的核心权限码
 
 ```
 sql_submit, sql_review, sql_execute, sql_execute_for_resource_group,
@@ -66,6 +65,9 @@ monitor_all_instances    # 可监控所有实例
 管理员可在角色详情页增删权限码和菜单可见性，但不能删除或重命名 `is_system=True` 的内置角色。
 
 ### 菜单可见性控制
+
+菜单实现以权限码为准，不再维护“角色 -> 菜单”的第二套真相：
+`menu_dashboard` / `menu_sqlworkflow` / `menu_query` / `menu_ops` / `menu_monitor` / `menu_system` / `menu_audit`
 
 | 菜单 | superadmin | dba | dba_group | developer |
 |---|---|---|---|---|
@@ -160,35 +162,33 @@ group_resource_group = Table(
 
 用户通过 **用户 → 用户组(*) → 资源组 → 实例** 链路获得实例访问权。
 
-### 3.6 QueryPrivilege 扩展
+### 3.6 QueryPrivilege 扩展（v2-lite 首发）
 
 | 操作 | 字段 | 类型 | 说明 |
 |---|---|---|---|
-| 新增 | `user_group_id` | Integer FK→`user_group.id` nullable | 授权给用户组 |
-| 新增 | `scope_type` | Enum | `resource_group` / `instance` / `database` / `table` |
-| 新增 | `resource_group_id` | Integer FK→`resource_group.id` nullable | scope_type=resource_group 时必填 |
-| 约束 | — | CHECK | `user_id IS NOT NULL OR user_group_id IS NOT NULL` |
+| 保留兼容 | `user_group_id` | Integer FK→`user_group.id` nullable | 二期预留，首发不走主流程 |
+| 收敛 | `scope_type` | Enum | 首发仅 `database` / `table` |
+| 保留兼容 | `resource_group_id` | Integer FK→`resource_group.id` nullable | 兼容旧迁移字段，首发不作为授权粒度 |
+| 首发约束 | — | 规则 | 首发仅支持用户主体授权 |
 
 **scope_type 与授权范围对应：**
 
 | scope_type | 授权范围 | 必填字段 |
 |---|---|---|
-| `resource_group` | 资源组内全部实例的全部库 | `resource_group_id` |
-| `instance` | 单个实例的全部库 | `instance_id` |
 | `database` | 单个实例的单个库 | `instance_id` + `db_name` |
 | `table` | 单个库的单个表 | `instance_id` + `db_name` + `table_name` |
 
 ### 3.7 ApprovalFlowNode 扩展
 
-新增 `approver_type` 值：
+首发支持的 `approver_type`：
 
 | approver_type | 说明 | 运行时解析 |
 |---|---|---|
 | `manager` | 直属上级 | `applicant.manager_id` → 找到审批人 |
-| `user_group` | 用户组 | `approver_ids` 中的组 ID，组内任意成员可审批 |
-| `role` | 角色持有者 | `approver_ids` 中的角色 ID，所有该角色用户可审批 |
-| `users` | 指定用户（已有） | `approver_ids` 中的用户 ID 列表 |
-| `any_reviewer` | 任意拥有审批权限的人（已有） | 不指定具体人 |
+| `users` | 指定用户 | `approver_ids` 中的用户 ID 列表 |
+| `any_reviewer` | 任意拥有审批权限的人 | 不指定具体人 |
+
+二期预留：`user_group` / `role`
 
 ---
 
@@ -227,11 +227,11 @@ def get_user_accessible_instances(user):
 ### 4.3 数据级权限解析优先级
 
 ```
-授权范围优先级：table > database > instance > resource_group
-授权主体优先级：用户直接授权 > 用户组授权
+首发授权范围优先级：table > database
+首发授权主体：仅用户直接授权
 ```
 
-用户查询时，系统检查该用户及所属用户组的所有 QueryPrivilege 记录，按优先级取最高级别授权。
+用户查询时，系统先检查资源组实例可见性，再检查用户自己的 QueryPrivilege 记录，按 `table > database` 优先级判定。
 
 ---
 
@@ -312,7 +312,7 @@ def get_user_accessible_instances(user):
 1. `current_user` 依赖返回 `role` + `permissions` 信息
 2. `require_perm()` 改为读角色的权限码集合
 3. 资源组访问路径改为 用户 → 用户组 → 资源组 → 实例
-4. 审批流支持 `manager` / `user_group` / `role` 节点类型
+4. 审批流首发切到 `manager` 节点，并为二期预留 `user_group` / `role` 扩展位
 5. 前端菜单渲染改为基于角色权限码
 
 ### Phase 4 — 清理旧表 ✅
@@ -330,6 +330,9 @@ def get_user_accessible_instances(user):
 11. 资源组列表 API 新增 `instances` 字段（关联的数据库实例列表）
 12. `UserCreate`/`UserUpdate` 移除 `resource_group_ids`（资源组通过用户组关联）
 13. Alembic 迁移 `0009_drop_legacy_tables.py`
+14. 资源组主弹窗移除资源组级 Webhook，仅保留“实例范围 / 关联用户组 / 状态”
+15. 停用资源组不能再被用户组新关联，前端选择器与后端服务层双重拦截
+16. 浏览器标题统一为 `矢 准 数 据`，数据库类型显示统一为官方命名
 
 ---
 
@@ -342,6 +345,13 @@ def get_user_accessible_instances(user):
 | **资源组（ResourceGroup）** | 实例访问范围，决定能操作哪些库 | 数据域 |
 | **QueryPrivilege** | 细粒度数据访问，决定能查哪张表 | 表级 ACL |
 | **审批流（ApprovalFlow）** | 流程定义，决定工单/权限申请的审批路径 | 审批流程 |
+
+### 当前 UI/交互落地口径
+
+- 资源组创建/编辑弹窗只保留：`group_name / group_name_cn / instance_ids / user_group_ids / is_active`
+- 资源组级 Webhook 不再作为首发权限模型的一部分，通知主路径统一走系统配置
+- 用户组编辑页只允许选择启用中的资源组；历史停用资源组仍可在列表中看到，但不会继续作为可选项
+- 前端数据库类型显示统一使用官方名称：`MySQL / PostgreSQL / Oracle / TiDB / Doris / ClickHouse / MongoDB / Cassandra / Redis / Elasticsearch / OpenSearch`
 
 ---
 

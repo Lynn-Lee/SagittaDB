@@ -43,9 +43,9 @@
 | 多级审批流 | 管理员自定义多节点审批流 + 前端管理页面 | ✅ | 100% |
 | 数据库权限管控 | is_active 启停控制、普通用户不可见禁用库、管理员标灰"已禁用" | ✅ | 100% |
 | Bug 修复 | MySQL DictCursor 修复、PG 表缺失修复、前端下拉框截断修复 | ✅ | 100% |
-| 授权体系 v2 | 角色系统（superadmin/dba/dba_group/developer）、用户组、资源组职责拆分、四级授权粒度、直属上级审批、短信验证码 | ✅ | 100% |
+| 授权体系 v2-lite | 角色系统（superadmin/dba/dba_group/developer）、用户组/资源组职责拆分、库级/表级授权、直属上级审批 | ✅ | 100% |
 
-**总体完成度：100%（v1.0-GA），v2 授权体系重设计已完成（100%，Phase 4 旧表清理已完成）**
+**总体完成度：100%（v1.0-GA），v2-lite 首发范围已完成并进入体验收口与持续验收阶段**
 
 ---
 
@@ -74,7 +74,7 @@
 - 超级管理员（is_superuser）跳过权限检查
 
 **实例管理**
-- 11 种数据库类型支持（MySQL/PgSQL/Oracle/MongoDB/Redis/ClickHouse/ES/MSSQL/Cassandra/Doris/TiDB）
+- 11 种数据库类型支持（MySQL/PostgreSQL/Oracle/MongoDB/Redis/ClickHouse/Elasticsearch/OpenSearch/MSSQL/Cassandra/Doris/TiDB）
 - 实例 CRUD + 测试连接
 - Fernet 对称加密存储密码字段
 - SSH 隧道配置（跳板机连接）
@@ -83,8 +83,9 @@
 
 **资源组管理**
 - 资源组 CRUD
-- 成员穿梭框管理（Transfer 组件）
-- 钉钉/飞书 Webhook 配置
+- 关联数据库实例多选
+- 关联用户组管理（资源组不再直接管理成员）
+- `is_active` 启停控制
 
 ### Sprint 2 — 在线查询 ✅
 
@@ -278,7 +279,7 @@
 
 **后端**
 - 新增数据模型：`ApprovalFlow`（审批流模板）+ `ApprovalFlowNode`（节点，支持顺序编号）
-- 三种审批人类型：`users`（指定用户）/ `group`（资源组成员）/ `any_reviewer`（任意 sql_review 权限用户）
+- 三种审批人类型：`users`（指定用户）/ `manager`（直属上级）/ `any_reviewer`（任意审批员）
 - 快照机制：工单创建时将审批流节点复制为 `audit_auth_groups_info` JSON，模板变更不影响在途工单
 - Alembic migration `0005_approval_flow.py`：新增两张表 + `sql_workflow.flow_id` 外键
 - `ApprovalFlowService`：CRUD（列表/详情/创建/更新/停用）+ `snapshot_for_workflow()`
@@ -289,7 +290,7 @@
 - `frontend/src/pages/system/ApprovalFlowPage.tsx`：
   - 审批流列表（名称、节点数、状态、创建人）
   - Drawer 表单：审批流基本信息 + `Form.List` 动态节点编辑
-  - 节点审批人类型联动：选 `any_reviewer` 隐藏选择框，选 `users`/`group` 展示对应下拉
+  - 节点审批人类型联动：选 `any_reviewer` 隐藏选择框，选 `users` 展示审批人选择，`manager` 无需额外选择
 - `MainLayout.tsx` 菜单：系统管理 → 审批流管理（`ApartmentOutlined` 图标）
 - `App.tsx` 路由：`/system/approval-flows` lazy import
 
@@ -361,7 +362,7 @@
 | 问题 | 严重级别 | 说明 |
 |---|---|---|
 | Celery Worker 健康检查 unhealthy | 低 | 无 HTTP 健康检查端点，功能正常但状态显示异常 |
-| Oracle/MSSQL/Cassandra/ES 引擎未全量验证 | 中 | 骨架已实现，需真实环境测试 |
+| Oracle/MSSQL/Cassandra/Elasticsearch/OpenSearch 引擎未全量验证 | 中 | 骨架已实现，需真实环境测试 |
 | Alembic 迁移文件需手动执行 | 低 | 新建表均有对应 SQL 脚本，需补充 CI 自动执行 |
 | totp_secret 字段已扩展至 500 | 已修复 | 原 100 字节不足，已通过 ALTER TABLE 修复 |
 | OAuth 回调 URL 需与各平台后台配置一致 | 低 | 部署时需在钉钉/飞书/企微管理后台填写正确的 callback URL |
@@ -421,24 +422,24 @@
 
 ---
 
-## 八、授权体系 v2 重设计（100% — 已完成）
+## 八、授权体系 v2-lite 收敛（100% — 已完成）
 
 > 详细方案请见 [sagittadba_auth_redesign_v2.md](sagittadba_auth_redesign_v2.md)
 
 ### 核心变更
 
-| 变更项 | 现状（v1） | 规划（v2） |
+| 变更项 | 现状（v1） | 当前落地（v2-lite） |
 |---|---|---|
 | 权限模型 | 26 个权限码直绑 User（扁平） | Role → Permission（4个内置角色 + 自定义角色） |
 | 实例隔离 | User → ResourceGroup → Instance | UserGroup → ResourceGroup → Instance |
-| 查询授权 | QueryPrivilege 仅授权给用户 | 支持授权给用户或用户组，四级粒度 |
+| 查询授权 | QueryPrivilege 仅授权给用户 | 首发仅启用“授权给用户本人 + database/table 两级粒度” |
 | DBA 角色 | 无（is_superuser 或扁平权限码） | dba（全局）/ dba_group（资源组内） |
-| 审批流 | 指定用户 / 资源组 / 任意审批人 | + 直属上级 / 用户组 / 角色持有者 |
+| 审批流 | 指定用户 / 资源组 / 任意审批人 | 首发仅启用 users / manager / any_reviewer |
 | 用户信息 | 无工号/部门/岗位/直属上级 | + employee_id / department / title / manager_id |
 | 认证方式 | 密码 + OTP + LDAP + OAuth×4 | + 短信验证码 |
 | 资源组 | 用户 + 实例多对多 | 仅实例（用户通过用户组间接关联） |
 
-### 已完成（全部 Phase）
+### 已完成
 
 | 子项 | 状态 | 说明 |
 |---|---|---|
@@ -449,21 +450,29 @@
 | Role + UserGroup CRUD API | ✅ | /roles/ + /user-groups/ + 资源组用户组关联 |
 | 权限链路升级 | ✅ | current_user 仅读角色权限（不再合并 user_permission） |
 | 资源组访问链路 | ✅ | 仅通过用户组（不再查 user_resource_group） |
-| QueryPrivilege 扩展 | ✅ | user_group_id / scope_type / resource_group_id |
-| 查询权限安全修复 | ✅ | _has_db_priv/_has_table_priv 检查用户组+资源组范围授权 |
-| ApprovalFlowNode 扩展 | ✅ | 6种审批人类型全部实现（manager/user_group/role） |
+| QueryPrivilege 收敛 | ✅ | 首发只启用 user + database/table，保留兼容字段 |
+| 查询权限安全修复 | ✅ | 查询先校验实例资源范围，再校验库/表授权 |
+| ApprovalFlowNode 收敛 | ✅ | 首发只启用 users / manager / any_reviewer |
 | 短信验证码认证 | ✅ | 阿里云/腾讯云/自定义 HTTP，Redis 限流 |
 | LDAP/OAuth 字段同步 | ✅ | employee_id / department / title / manager_id |
 | 前端角色管理页面 | ✅ | RoleManagement.tsx |
 | 前端用户组管理页面 | ✅ | UserGroupManagement.tsx（白屏修复：补充 Modal 导入） |
-| 前端路由 + 菜单 | ✅ | App.tsx Route + MainLayout.tsx NAV_ITEMS |
+| 前端路由 + 菜单 | ✅ | 菜单按权限码过滤，路由统一加 PermissionGuard |
 | 用户管理 v2 字段 | ✅ | 角色选择 / 用户组（显示名称 Tag）/ 直属上级 / 工号 / 部门 / 职位 |
 | 资源组管理 v2 | ✅ | 展示关联数据库实例列表 + 用户组穿梭框，移除直接成员穿梭框 |
 | 资源组用户组关联 | ✅ | 前端穿梭框 + 后端 GET/PUT API |
+| 资源组停用约束 | ✅ | 停用资源组不能再被用户组新关联，前后端双重拦截 |
+| 数据库类型显示统一 | ✅ | 前端统一展示为 MySQL / PostgreSQL / TiDB / ClickHouse 等官方命名 |
+| 品牌页签统一 | ✅ | 浏览器标题更新为 `矢 准 数 据` |
+| 用户批量导入导出 | ✅ | 支持 Excel / CSV 模板下载、导出回灌、失败记录导出 |
+| 用户页统一筛选导出 | ✅ | 顶部筛选支持角色 / 用户组 / 部门 / 职位 / 状态，多条件交集后导出筛选结果或勾选结果 |
+| SQL 工单资源组解析 | ✅ | 提交页移除手动资源组选择，后端按用户组→资源组→实例自动归属 |
+| 后台表格体验统一 | ✅ | 核心页面统一固定列宽 / 横向滚动 / 关键字段展示 / 结果表格空态 |
 | 数据迁移脚本 | ✅ | scripts/migrate_v1_to_v2.py（dry-run + 实际运行验证） |
 | 权限 API | ✅ | get_merged_permissions 仅查 role_permission（grant/revoke 操作角色权限） |
 | Phase 4 旧表清理 | ✅ | 删除 user_permission / user_resource_group 表及所有代码引用 |
-| Docker 集成测试 | ✅ | 迁移+API+前端 全部通过 |
+| 查询权限排查接口 | ✅ | `/api/v1/query/access-check/` 返回 `allowed/reason/layer` |
+| 验证闭环 | ✅ | 前端 typecheck + 后端 v2-lite 授权单测通过 |
 
 ### 四个内置角色
 
@@ -474,6 +483,22 @@
 | `dba_group` | 资源组 DBA | 运维权限，实例范围限于资源组 |
 | `developer` | 开发工程师 | 工单提交 + 查询申请，需授权才能查库 |
 
+### 本次补充验证
+
+| 检查项 | 结果 |
+|---|---|
+| `frontend: npm run typecheck` | ✅ 通过 |
+| `backend: python3 -m compileall app` | ✅ 通过 |
+| `backend: ./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py` | ✅ 13 passed |
+| 停用资源组关联拦截 | ✅ 通过（后端容器内直接验证 `site-db` 被拒绝关联） |
+
+### 首发未启用但保留兼容位
+
+- `QueryPrivilege.user_group_id`
+- `QueryPrivilege.resource_group_id`
+- `scope_type = resource_group / instance`
+- `ApprovalFlow.approver_type = user_group / role`
+
 ### 迁移计划（已全部完成）
 
 1. **Phase 1**（已完成）：新增表 + 扩展字段 + 短信认证 + LDAP 同步 + 前端页面
@@ -483,4 +508,4 @@
 
 ---
 
-*文档最后更新：2026-04-13 · SagittaDB v1.0-GA + v2 授权体系重设计已完成（100%）*
+*文档最后更新：2026-04-13 · SagittaDB v1.0-GA + v2-lite 权限收敛与后台表格体验收口持续完成中*

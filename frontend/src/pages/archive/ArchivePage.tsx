@@ -10,6 +10,7 @@ import {
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { instanceApi } from '@/api/instance'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text, Paragraph } = Typography
 const { Option } = Select
@@ -17,6 +18,17 @@ const { Option } = Select
 const MODE_COLORS: Record<string, string> = { purge: 'red', dest: 'blue' }
 const DB_SUPPORT_COLORS: Record<string, string> = {
   true: 'success', false: 'default',
+}
+
+interface ArchiveSupportResponse {
+  support: Record<string, { purge: boolean; dest: boolean; reason: string }>
+}
+
+interface ArchiveActionResponse {
+  supported?: boolean
+  success?: boolean
+  msg: string
+  count?: number
 }
 
 export default function ArchivePage() {
@@ -32,7 +44,7 @@ export default function ArchivePage() {
   // 支持矩阵
   const { data: supportData } = useQuery({
     queryKey: ['archive-support'],
-    queryFn: () => apiClient.get('/archive/support/').then(r => r.data),
+    queryFn: () => apiClient.get<ArchiveSupportResponse>('/archive/support/').then(r => r.data),
   })
 
   // 实例列表
@@ -50,8 +62,8 @@ export default function ArchivePage() {
 
   // 估算
   const estimateMut = useMutation({
-    mutationFn: (data: any) => apiClient.post('/archive/estimate/', data).then(r => r.data),
-    onSuccess: (res) => {
+    mutationFn: (data: any) => apiClient.post<ArchiveActionResponse>('/archive/estimate/', data).then(r => r.data),
+    onSuccess: (res: ArchiveActionResponse) => {
       setEstimateResult(res)
       if (res.supported === false) {
         msgApi.warning(res.msg)
@@ -65,8 +77,8 @@ export default function ArchivePage() {
 
   // 执行归档
   const runMut = useMutation({
-    mutationFn: (data: any) => apiClient.post('/archive/run/', data).then(r => r.data),
-    onSuccess: (res) => {
+    mutationFn: (data: any) => apiClient.post<ArchiveActionResponse>('/archive/run/', data).then(r => r.data),
+    onSuccess: (res: ArchiveActionResponse) => {
       setRunResult(res)
       setConfirmOpen(false)
       setStep(2)
@@ -104,7 +116,7 @@ export default function ArchivePage() {
   // 支持矩阵表格
   const supportCols = [
     { title: '数据库类型', dataIndex: 'db_type', key: 'db_type',
-      render: (v: string) => <Tag>{v.toUpperCase()}</Tag> },
+      render: (v: string) => <Tag>{formatDbTypeLabel(v)}</Tag> },
     { title: 'purge（直接删除）', dataIndex: 'purge', key: 'purge', width: 140,
       render: (v: boolean) => v
         ? <Tag color="success">✅ 支持</Tag>
@@ -154,7 +166,7 @@ export default function ArchivePage() {
                       onChange={(v) => { setSrcInstanceId(v); form.setFieldValue('source_db', undefined) }}>
                       {instances?.items?.map((i: any) => (
                         <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>
-                          <Tag color="blue" style={{ fontSize: 11 }}>{i.db_type.toUpperCase()}</Tag>
+                          <Tag color="blue" style={{ fontSize: 11 }}>{formatDbTypeLabel(i.db_type)}</Tag>
                           {i.instance_name}
                         </Option>
                       ))}
@@ -280,7 +292,8 @@ export default function ArchivePage() {
             style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}
             styles={{ body: { padding: 0 } }}>
             <Table dataSource={supportRows} columns={supportCols}
-              size="small" pagination={false}
+              size="small" tableLayout="fixed" scroll={{ x: 760 }} pagination={false}
+              locale={{ emptyText: '暂无归档支持矩阵数据' }}
               rowClassName={(r) => r.purge || r.dest ? '' : 'opacity-50'}
             />
           </Card>

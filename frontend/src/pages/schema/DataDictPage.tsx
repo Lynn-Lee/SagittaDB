@@ -8,6 +8,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { instanceApi } from '@/api/instance'
 import apiClient from '@/api/client'
+import { formatDbTypeLabel } from '@/utils/dbType'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -57,7 +58,7 @@ export default function DataDictPage() {
   }))
 
   const colTableCols = [
-    { title: '列名', dataIndex: 'column_name', key: 'column_name',
+    { title: '列名', dataIndex: 'column_name', key: 'column_name', width: 180,
       render: (v: string) => <Text code style={{ fontSize: 12 }}>{v}</Text> },
     { title: '数据类型', dataIndex: 'column_type', key: 'column_type', width: 150,
       render: (v: string) => <Tag color="geekblue" style={{ fontSize: 11 }}>{v}</Tag> },
@@ -89,7 +90,7 @@ export default function DataDictPage() {
             showSearch optionFilterProp="label">
             {instances?.items?.map((i: any) => (
               <Option key={i.id} value={i.id} label={i.instance_name} title={i.instance_name}>
-                <Tag color="blue" style={{ fontSize: 11 }}>{i.db_type.toUpperCase()}</Tag>
+                <Tag color="blue" style={{ fontSize: 11 }}>{formatDbTypeLabel(i.db_type)}</Tag>
                 {i.instance_name}
               </Option>
             ))}
@@ -153,6 +154,8 @@ export default function DataDictPage() {
                   columns={colTableCols}
                   loading={colLoading}
                   size="small"
+                  tableLayout="fixed"
+                  scroll={{ x: 780 }}
                   pagination={{ pageSize: 50, showSizeChanger: false }}
                 />
               ) : (
