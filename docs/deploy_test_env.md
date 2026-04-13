@@ -1,9 +1,10 @@
-# SagittaDB 测试环境部署文档
+# SagittaDB 测试环境部署与验收文档
 
-> **文档版本：** v1.2 · 2026-04-11
-> **适用版本：** SagittaDB v1.0-GA
+> **文档版本：** v1.3 · 2026-04-13
+> **适用版本：** SagittaDB v1.0-GA + v2-lite
 > **部署方式：** Docker Compose（开发 / 测试）
 > **目标读者：** 开发人员、测试人员、技术负责人
+> **目标：** 在测试环境完成系统部署、初始化、基础校验和全功能人工验收准备
 
 ---
 
@@ -54,6 +55,12 @@ cp .env.example .env
 
 测试环境使用默认值即可，无需修改 `.env`。如需自定义，参考第三节。
 
+如需验证本轮最新测试分支，请切到对应分支：
+
+```bash
+git checkout codex-v2-lite-auth-hardening
+```
+
 ### 步骤 3：启动所有服务
 
 ```bash
@@ -93,6 +100,21 @@ docker compose ps
 | Celery 监控 | http://localhost:5555 | Flower 面板 |
 | Prometheus | http://localhost:9090 | 指标查询 |
 | Grafana | http://localhost:3000 | 仪表板（admin/admin） |
+
+### 步骤 7：基础校验
+
+建议在开始功能测试前，至少跑完下面 3 条：
+
+```bash
+# 前端类型检查
+cd frontend && npm run typecheck && cd ..
+
+# 后端编译校验
+python3 -m compileall backend/app
+
+# 健康检查
+docker compose exec backend curl -s http://localhost:8000/health
+```
 
 ---
 
@@ -290,7 +312,15 @@ export FERNET_KEY=dGhpcy1pcy1hLXRlc3Qta2V5LWZvci1jaS1vbmx5IQ==
 pytest tests/integration/ -v
 ```
 
-### 7.3 性能测试（可选）
+### 7.3 v2-lite 权限专项校验
+
+```bash
+cd backend
+./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py -v
+cd ..
+```
+
+### 7.4 性能测试（可选）
 
 ```bash
 pip install locust
@@ -300,7 +330,84 @@ locust -f tests/perf/locustfile.py --host http://localhost:8000
 
 ---
 
-## 八、Grafana Dashboard 导入
+## 八、测试环境初始化建议
+
+测试环境首次部署后，建议按下面顺序准备数据：
+
+1. 初始化系统，确认 `admin / Admin@2024!` 可登录
+2. 创建基础角色与测试用户：
+   - `dev_user`
+   - `group_dba_user`
+   - `manager_user`
+3. 创建用户组与资源组：
+   - 用户组至少准备：开发组、DBA 组
+   - 资源组至少准备：开发资源组、运维资源组
+4. 给资源组关联实例，给用户组关联资源组
+5. 给测试用户挂用户组、直属上级、角色
+6. 至少注册 2 个数据库和若干测试表
+7. 准备查询权限申请、SQL 工单、审批流、脱敏规则、工单模板测试数据
+
+推荐最小验证链路：
+
+1. `developer` 登录后验证菜单裁剪
+2. 验证资源组实例范围是否正确
+3. 验证 SQL 工单提交时资源组是否自动解析
+4. 验证查询权限申请 / 审批 / 生效
+5. 验证用户管理导入导出回灌
+
+---
+
+## 九、推荐验收顺序
+
+建议你在测试环境按这套顺序做完整人工验收：
+
+### 9.1 先跑环境与基础能力
+
+- 登录
+- 用户管理
+- 用户组管理
+- 资源组管理
+- 角色管理
+- 审批流管理
+- 实例管理
+
+### 9.2 再跑权限主链路
+
+- `developer` 菜单与页面权限
+- `dba_group` 资源范围限制
+- 资源组停用约束
+- 查询权限申请与审批
+- SQL 工单提交、审批、执行
+
+### 9.3 再跑效率与安全工具
+
+- 工单模板
+- AI Text2SQL
+- 数据脱敏
+- 数据字典
+- 会话管理
+- 慢查询分析
+- SQL 优化
+- 数据归档
+- 审计日志
+- 监控配置
+
+### 9.4 推荐直接使用的测试文档
+
+- 总体验收：
+  - [docs/test/v2_lite_auth_full_validation.md](/Users/lynn/SynologyDrive/SynologyDrive/Code/SagittaDB/docs/test/v2_lite_auth_full_validation.md)
+- 本地快速权限验证：
+  - [docs/test/v2_lite_auth_local_validation.md](/Users/lynn/SynologyDrive/SynologyDrive/Code/SagittaDB/docs/test/v2_lite_auth_local_validation.md)
+- 系统管理：
+  - [docs/test/pack_c1_system_admin_test.md](/Users/lynn/SynologyDrive/SynologyDrive/Code/SagittaDB/docs/test/pack_c1_system_admin_test.md)
+- SQL 工单：
+  - [docs/test/pack_a_workflow_test.md](/Users/lynn/SynologyDrive/SynologyDrive/Code/SagittaDB/docs/test/pack_a_workflow_test.md)
+- 数据安全与效率工具：
+  - [docs/test/pack_d_data_security_test.md](/Users/lynn/SynologyDrive/SynologyDrive/Code/SagittaDB/docs/test/pack_d_data_security_test.md)
+
+---
+
+## 十、Grafana Dashboard 导入
 
 1. 访问 http://localhost:3000，使用 `admin / admin` 登录
 2. 左侧菜单 → Dashboards → Import
@@ -309,7 +416,7 @@ locust -f tests/perf/locustfile.py --host http://localhost:8000
 
 ---
 
-## 九、常见问题
+## 十一、常见问题
 
 ### Q1：端口被占用
 
@@ -342,7 +449,7 @@ docker compose exec backend alembic upgrade head
 
 ### Q4：Celery Worker 显示 unhealthy
 
-Celery Worker 无 HTTP 健康检查接口，`unhealthy` 是已知问题（功能正常）。通过 Flower 面板确认 Worker 是否在线即可。
+如果看到 `celery_worker / celery_beat / flower` 为 `unhealthy`，先检查是否使用了最新 compose 配置。当前版本已修正这些容器的健康检查；正常情况下应能启动为健康或稳定运行状态。
 
 ### Q5：前端页面空白或 404
 
@@ -354,19 +461,30 @@ docker compose logs frontend
 docker compose exec frontend cat /etc/nginx/conf.d/default.conf
 ```
 
+### Q6：页面没有更新到最新前端样式
+
+测试环境前端默认通过 Nginx 提供静态包，不是热更新模式。若你已经更新代码但页面仍显示旧内容：
+
+```bash
+docker compose build frontend
+docker compose up -d frontend
+```
+
+然后浏览器强制刷新：
+
+- macOS / Chrome：`Cmd + Shift + R`
+
+### Q7：用户导入导出或权限验证和文档不一致
+
+优先确认：
+
+1. 当前分支是否正确
+2. 前端静态包是否已重建
+3. 后端迁移是否已执行到最新
+4. 是否已使用最新测试文档：
+   - `docs/test/v2_lite_auth_full_validation.md`
+   - `docs/test/v2_lite_auth_local_validation.md`
+
 ---
 
-## 十、测试数据准备建议
-
-测试环境首次部署后，建议按以下顺序准备测试数据：
-
-1. **创建测试用户**：`admin` + 至少 1 个普通用户（含 sql_submit 权限）
-2. **创建资源组**：关联数据库实例，并通过用户组把测试账号纳入资源范围
-3. **注册测试实例**：可指向本地 MySQL / PostgreSQL（或 Docker 内另起的实例）
-4. **注册数据库**：对测试实例执行"从引擎同步"
-5. **配置数据脱敏规则**：选一个 email/phone 字段配置规则
-6. **提交测试工单**：走完提交→审批→执行完整流程
-
----
-
-*SagittaDB 矢准数据 · 测试环境部署文档 v1.0 · 2026-03-26*
+*SagittaDB 矢准数据 · 测试环境部署与验收文档 v1.3 · 2026-04-13*
