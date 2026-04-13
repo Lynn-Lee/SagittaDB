@@ -8,20 +8,19 @@ Phase 4：移除 user_permission / user_resource_group 旧表引用。
 from __future__ import annotations
 
 import csv
-from io import BytesIO, StringIO
 import logging
+from io import BytesIO, StringIO
 from pathlib import Path
 
+from openpyxl import Workbook, load_workbook
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from openpyxl import Workbook, load_workbook
-
 from app.core.exceptions import AppException, ConflictException, NotFoundException
 from app.core.security import hash_password, verify_password
-from app.models.role import UserGroup, group_resource_group, role_permission, user_group_member
 from app.models.instance import Instance
+from app.models.role import UserGroup, group_resource_group, role_permission, user_group_member
 from app.models.user import Permission, ResourceGroup, Users, instance_resource_group
 from app.schemas.user import (
     ResourceGroupCreate,
@@ -895,7 +894,7 @@ class UserService:
                 )
 
         raise AppException(
-            f"直属上级不存在，请填写有效的 manager_username 或唯一的 manager_display_name",
+            "直属上级不存在，请填写有效的 manager_username 或唯一的 manager_display_name",
             code=400,
         )
 
