@@ -60,6 +60,8 @@ const UserGroupManagement: React.FC = () => {
     onSuccess: () => {
       messageApi.success('用户组创建成功')
       qc.invalidateQueries({ queryKey: ['user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups-for-rg'] })
       setModalOpen(false)
       form.resetFields()
     },
@@ -71,6 +73,8 @@ const UserGroupManagement: React.FC = () => {
     onSuccess: () => {
       messageApi.success('用户组已更新')
       qc.invalidateQueries({ queryKey: ['user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups-for-rg'] })
       setModalOpen(false)
       form.resetFields()
       setEditId(null)
@@ -83,6 +87,8 @@ const UserGroupManagement: React.FC = () => {
     onSuccess: () => {
       messageApi.success('用户组已删除')
       qc.invalidateQueries({ queryKey: ['user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups'] })
+      qc.invalidateQueries({ queryKey: ['all-user-groups-for-rg'] })
     },
     onError: (e: any) => messageApi.error(e.response?.data?.detail || '删除失败'),
   })

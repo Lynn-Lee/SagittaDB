@@ -464,6 +464,8 @@
 | 资源组停用约束 | ✅ | 停用资源组不能再被用户组新关联，前后端双重拦截 |
 | 数据库类型显示统一 | ✅ | 前端统一展示为 MySQL / PostgreSQL / TiDB / ClickHouse 等官方命名 |
 | 品牌页签统一 | ✅ | 浏览器标题更新为 `矢 准 数 据` |
+| 用户批量导入导出 | ✅ | 支持 Excel / CSV 模板下载、导出回灌、失败记录导出 |
+| 用户页统一筛选导出 | ✅ | 顶部筛选支持角色 / 用户组 / 部门 / 职位 / 状态，多条件交集后导出筛选结果或勾选结果 |
 | 数据迁移脚本 | ✅ | scripts/migrate_v1_to_v2.py（dry-run + 实际运行验证） |
 | 权限 API | ✅ | get_merged_permissions 仅查 role_permission（grant/revoke 操作角色权限） |
 | Phase 4 旧表清理 | ✅ | 删除 user_permission / user_resource_group 表及所有代码引用 |
