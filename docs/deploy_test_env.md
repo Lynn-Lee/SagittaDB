@@ -55,6 +55,13 @@ cp .env.example .env
 
 测试环境使用默认值即可，无需修改 `.env`。如需自定义，参考第三节。
 
+测试环境数据库默认口径统一为：
+
+- PostgreSQL 用户：`sagitta`
+- PostgreSQL 数据库名：`sagittadb`
+
+如果你是从旧环境升级，或手头还保留历史 `.env` / Alembic 配置，请确认不要再使用旧的 `archery / archery` 组合。
+
 如需验证本轮最新测试分支，请切到对应分支：
 
 ```bash
