@@ -292,7 +292,8 @@ export default function ArchivePage() {
             style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}
             styles={{ body: { padding: 0 } }}>
             <Table dataSource={supportRows} columns={supportCols}
-              size="small" pagination={false}
+              size="small" tableLayout="fixed" scroll={{ x: 760 }} pagination={false}
+              locale={{ emptyText: '暂无归档支持矩阵数据' }}
               rowClassName={(r) => r.purge || r.dest ? '' : 'opacity-50'}
             />
           </Card>

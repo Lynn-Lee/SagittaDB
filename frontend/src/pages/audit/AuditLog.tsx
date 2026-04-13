@@ -57,8 +57,8 @@ export default function AuditLog() {
       title: '模块', dataIndex: 'module', width: 90,
       render: (v: string) => <Tag color={MODULE_COLOR[v] || 'default'}>{v}</Tag>,
     },
-    { title: '操作', dataIndex: 'action', width: 160, ellipsis: true },
-    { title: '详情', dataIndex: 'detail', ellipsis: true },
+    { title: '操作', dataIndex: 'action', width: 180, ellipsis: true },
+    { title: '详情', dataIndex: 'detail', width: 340, ellipsis: true },
     {
       title: 'IP', dataIndex: 'ip_address', width: 130,
       render: (v: string) => <Text type="secondary" style={{ fontSize: 12 }}>{v || '—'}</Text>,
@@ -114,7 +114,8 @@ export default function AuditLog() {
           rowKey="id"
           loading={isLoading}
           size="small"
-          scroll={{ x: 900 }}
+          tableLayout="fixed"
+          scroll={{ x: 1100 }}
           pagination={{
             total: data?.total, current: page, pageSize: 50,
             onChange: p => setPage(p), showSizeChanger: false,

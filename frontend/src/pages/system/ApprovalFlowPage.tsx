@@ -120,7 +120,7 @@ export default function ApprovalFlowPage() {
   // ── Table columns ────────────────────────────────────────────
   const columns = [
     {
-      title: '审批流名称', key: 'name',
+      title: '审批流名称', key: 'name', width: 260,
       render: (_: unknown, r: any) => (
         <Space direction="vertical" size={0}>
           <Space>
@@ -136,11 +136,28 @@ export default function ApprovalFlowPage() {
       render: (v: number) => <Tag color="blue">{v} 级</Tag>,
     },
     {
+      title: '节点类型', key: 'node_types', width: 260,
+      render: (_: unknown, r: any) => {
+        const nodes = r.nodes || []
+        if (!nodes.length) return <Text type="secondary">未配置</Text>
+        const labels = Array.from(new Set(nodes.map((n: ApprovalFlowNode) => APPROVER_TYPE_LABELS[n.approver_type] || n.approver_type)))
+        return (
+          <Space wrap size={[4, 4]}>
+            {labels.map((label: string) => <Tag key={label}>{label}</Tag>)}
+          </Space>
+        )
+      },
+    },
+    {
       title: '状态', dataIndex: 'is_active', key: 'is_active', width: 80,
       render: (v: boolean) => <Tag color={v ? 'success' : 'default'}>{v ? '启用' : '停用'}</Tag>,
     },
     {
       title: '创建人', dataIndex: 'created_by', key: 'created_by', width: 120,
+    },
+    {
+      title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 160,
+      render: (value: string) => value ? new Date(value).toLocaleString('zh-CN') : '—',
     },
     {
       title: '操作', key: 'actions', width: 140,
@@ -195,6 +212,8 @@ export default function ApprovalFlowPage() {
           columns={columns}
           dataSource={data?.items || []}
           loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 1100 }}
           pagination={{ pageSize: 20, showSizeChanger: false, showTotal: t => `共 ${t} 条` }}
         />
       </Card>

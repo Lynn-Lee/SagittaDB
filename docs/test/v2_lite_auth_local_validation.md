@@ -31,6 +31,8 @@ curl -X POST http://localhost:8000/api/v1/system/init/
 - 资源组弹窗只保留“关联数据库实例 / 关联用户组 / 状态”
 - 用户组编辑时不可继续关联停用资源组
 - 数据库类型显示统一为 `MySQL / PostgreSQL / Oracle / TiDB / Doris / ClickHouse / MongoDB / Cassandra / Redis / Elasticsearch / OpenSearch`
+- SQL 工单提交页不再手动选择资源组，系统按权限链路自动解析
+- 核心后台列表页统一了固定列宽、横向滚动和关键字段展示
 
 ---
 
@@ -138,6 +140,20 @@ curl -X POST http://localhost:8000/api/v1/system/init/
 
 - `rg_dev` 不再出现在可选资源组列表中
 - 若某用户组历史上已关联 `rg_dev`，列表列仍可见，并带“已停用”提示
+
+### TC-LITE-005B SQL 工单自动解析资源组
+
+步骤：
+
+1. 使用 `dev_user` 登录。
+2. 进入“SQL 工单 -> 提交工单”。
+3. 观察表单项并选择一个自己有权限的实例和数据库。
+
+预期：
+
+- 表单中不再出现“资源组”选择框
+- 页面会提示资源组按“用户组 -> 资源组 -> 实例”自动解析
+- 对有权限的实例可以正常提交
 
 ---
 

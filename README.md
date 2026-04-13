@@ -105,6 +105,7 @@ SagittaDB/
 - 查询拒绝时可通过 `POST /api/v1/query/access-check/` 返回拒绝层级与原因
 - 用户管理支持 Excel / CSV 批量导入导出，导出文件可直接修改后回灌
 - 用户管理页内支持统一筛选与直接导出：关键词（含电话号码）、角色、用户组、部门、职位、状态
+- SQL 工单提交页不再要求用户手动选择资源组，系统会按“用户组 → 资源组 → 实例”自动解析归属资源组
 
 ## 最近验证
 
@@ -121,8 +122,10 @@ cd backend && ./.venv/bin/python -m pytest tests/unit/test_authz_v2_lite.py
 - 资源组主弹窗只保留“实例范围 + 关联用户组 + 状态”，移除了资源组级 Webhook
 - 停用资源组不能再被用户组新关联，前端与后端双重拦截
 - 用户组列表新增“关联资源组”列，资源组列表直接展示关联用户组标签
+- 用户组列表新增“组长 / 上级组”列，列表信息与表单配置口径一致
 - 浏览器标题统一为 `矢 准 数 据`
 - 前端数据库类型显示统一为官方命名：`MySQL / PostgreSQL / Oracle / TiDB / Doris / ClickHouse / MongoDB / Cassandra / Redis / Elasticsearch / OpenSearch`
+- 核心后台表格页已统一固定列宽、横向滚动基线、长文本省略与关键业务字段展示
 
 ## 开发指南
 

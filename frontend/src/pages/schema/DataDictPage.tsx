@@ -58,7 +58,7 @@ export default function DataDictPage() {
   }))
 
   const colTableCols = [
-    { title: '列名', dataIndex: 'column_name', key: 'column_name',
+    { title: '列名', dataIndex: 'column_name', key: 'column_name', width: 180,
       render: (v: string) => <Text code style={{ fontSize: 12 }}>{v}</Text> },
     { title: '数据类型', dataIndex: 'column_type', key: 'column_type', width: 150,
       render: (v: string) => <Tag color="geekblue" style={{ fontSize: 11 }}>{v}</Tag> },
@@ -154,6 +154,8 @@ export default function DataDictPage() {
                   columns={colTableCols}
                   loading={colLoading}
                   size="small"
+                  tableLayout="fixed"
+                  scroll={{ x: 780 }}
                   pagination={{ pageSize: 50, showSizeChanger: false }}
                 />
               ) : (

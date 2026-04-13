@@ -50,6 +50,9 @@ export default function QueryPrivPage() {
     queryFn: () => instanceApi.listRegisteredDbs(instanceId!),
     enabled: !!instanceId,
   })
+  const instanceNameMap = new Map<number, string>(
+    (instanceData?.items ?? []).map((instance: any) => [instance.id, instance.instance_name]),
+  )
 
   const applyMut = useMutation({
     mutationFn: queryApi.applyPrivilege,
@@ -77,10 +80,13 @@ export default function QueryPrivPage() {
   }
 
   const privColumns = [
-    { title: '实例ID', dataIndex: 'instance_id', width: 80 },
-    { title: '数据库', dataIndex: 'db_name' },
+    {
+      title: '目标实例', dataIndex: 'instance_id', width: 180,
+      render: (instanceIdValue: number) => instanceNameMap.get(instanceIdValue) || `实例#${instanceIdValue}`,
+    },
+    { title: '数据库', dataIndex: 'db_name', width: 160, ellipsis: true },
     { title: '范围', dataIndex: 'scope_type', width: 90, render: (v: string) => <Tag color={v === 'table' ? 'purple' : 'blue'}>{v === 'table' ? '表级' : '库级'}</Tag> },
-    { title: '表名', dataIndex: 'table_name', render: (v: string) => v || <Text type="secondary">全库</Text> },
+    { title: '表名', dataIndex: 'table_name', width: 180, ellipsis: true, render: (v: string) => v || <Text type="secondary">全库</Text> },
     { title: '行数限制', dataIndex: 'limit_num', width: 90 },
     {
       title: '有效期', dataIndex: 'valid_date', width: 110,
@@ -93,10 +99,14 @@ export default function QueryPrivPage() {
 
   const applyColumns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '标题', dataIndex: 'title', ellipsis: true },
-    { title: '申请数据库', dataIndex: 'db_name' },
+    { title: '标题', dataIndex: 'title', width: 220, ellipsis: true },
+    {
+      title: '目标实例', dataIndex: 'instance_id', width: 180,
+      render: (instanceIdValue: number) => instanceNameMap.get(instanceIdValue) || `实例#${instanceIdValue}`,
+    },
+    { title: '申请数据库', dataIndex: 'db_name', width: 150, ellipsis: true },
     { title: '范围', dataIndex: 'scope_type', width: 90, render: (v: string) => <Tag color={v === 'table' ? 'purple' : 'blue'}>{v === 'table' ? '表级' : '库级'}</Tag> },
-    { title: '申请理由', dataIndex: 'apply_reason', ellipsis: true },
+    { title: '申请理由', dataIndex: 'apply_reason', width: 220, ellipsis: true },
     {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: number) => <Tag color={STATUS_MAP[v]?.color}>{STATUS_MAP[v]?.label}</Tag>,
@@ -124,7 +134,7 @@ export default function QueryPrivPage() {
       label: `我的权限（${privData?.items?.length ?? 0}）`,
       children: (
         <Table dataSource={privData?.items} columns={privColumns}
-          rowKey="id" size="small" pagination={{ pageSize: 20 }} />
+          rowKey="id" size="small" tableLayout="fixed" scroll={{ x: 860 }} pagination={{ pageSize: 20 }} />
       ),
     },
     {
@@ -132,7 +142,7 @@ export default function QueryPrivPage() {
       label: `申请记录（${applyData?.total ?? 0}）`,
       children: (
         <Table dataSource={applyData?.items} columns={applyColumns as any}
-          rowKey="id" size="small" pagination={{ pageSize: 20 }} />
+          rowKey="id" size="small" tableLayout="fixed" scroll={{ x: 1120 }} pagination={{ pageSize: 20 }} />
       ),
     },
   ]

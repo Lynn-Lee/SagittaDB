@@ -116,7 +116,7 @@ export default function MaskingRulePage() {
   }
 
   const columns = [
-    { title: '规则名称', dataIndex: 'rule_name', render: (v: string, r: any) => (
+    { title: '规则名称', dataIndex: 'rule_name', width: 220, render: (v: string, r: any) => (
       <Space direction="vertical" size={0}>
         <Text strong>{v}</Text>
         {r.description && <Text type="secondary" style={{ fontSize: 11 }}>{r.description}</Text>}
@@ -135,7 +135,9 @@ export default function MaskingRulePage() {
     )},
     { title: '状态', dataIndex: 'is_active', width: 80,
       render: (v: boolean) => v ? <Tag color="success">启用</Tag> : <Tag>停用</Tag> },
-    { title: '创建人', dataIndex: 'created_by', width: 90 },
+    { title: '创建人', dataIndex: 'created_by', width: 110 },
+    { title: '创建时间', dataIndex: 'created_at', width: 160,
+      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '—' },
     { title: '操作', width: 110, render: (_: any, r: any) => (
       <Space>
         <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
@@ -161,6 +163,8 @@ export default function MaskingRulePage() {
 
       <Card style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }} styles={{ body: { padding: 0 } }}>
         <Table dataSource={data?.items} columns={columns} rowKey="id" loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 980 }}
           pagination={{ total: data?.total, pageSize: 20, showSizeChanger: false }} />
       </Card>
 

@@ -661,6 +661,9 @@ export default function UserManagement() {
             dataSource={importResult.errors}
             pagination={{ pageSize: 8, showSizeChanger: false }}
             size="small"
+            tableLayout="fixed"
+            scroll={{ x: 760 }}
+            locale={{ emptyText: '本次导入没有失败记录' }}
           />
         ) : (
           <Text type="secondary">本次导入没有失败记录。</Text>

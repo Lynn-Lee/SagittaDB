@@ -75,10 +75,10 @@ function InstanceDatabasePanel({ instance }: { instance: InstanceItem }) {
 
   const columns: ColumnsType<any> = [
     {
-      title: dbLabel + '名称', dataIndex: 'db_name',
+      title: dbLabel + '名称', dataIndex: 'db_name', width: 180,
       render: (v: string) => <Tag color="blue" style={{ fontFamily: 'monospace' }}>{v}</Tag>,
     },
-    { title: '备注', dataIndex: 'remark', ellipsis: true,
+    { title: '备注', dataIndex: 'remark', width: 220, ellipsis: true,
       render: (v: string) => v || <Text type="secondary">—</Text> },
     {
       title: '状态', dataIndex: 'is_active', width: 90,
@@ -136,6 +136,8 @@ function InstanceDatabasePanel({ instance }: { instance: InstanceItem }) {
         rowKey="id"
         loading={isLoading}
         size="small"
+        tableLayout="fixed"
+        scroll={{ x: 760 }}
         pagination={{ pageSize: 20, showSizeChanger: false }}
       />
 
@@ -225,7 +227,7 @@ export default function InstanceList() {
   const columns: ColumnsType<InstanceItem> = [
     { title: 'ID', dataIndex: 'id', width: 55 },
     {
-      title: '实例名称', dataIndex: 'instance_name',
+      title: '实例名称', dataIndex: 'instance_name', width: 210,
       render: (v: string, r: InstanceItem) => (
         <Space direction="vertical" size={0}>
           <Text strong>{v}</Text>
@@ -237,8 +239,16 @@ export default function InstanceList() {
       title: '类型', dataIndex: 'db_type', width: 110,
       render: (v: string) => <Tag color={DB_TYPE_COLORS[v] || 'default'}>{formatDbTypeLabel(v)}</Tag>,
     },
+    {
+      title: '连接用户', dataIndex: 'user', width: 120,
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
     { title: '默认库', dataIndex: 'db_name', width: 110,
       render: (v: string) => v || <Text type="secondary">—</Text> },
+    {
+      title: '备注', dataIndex: 'remark', width: 220, ellipsis: true,
+      render: (v: string) => v || <Text type="secondary">—</Text>,
+    },
     {
       title: '状态', dataIndex: 'is_active', width: 80,
       render: (v: boolean) => v ? <Tag color="success">正常</Tag> : <Tag>停用</Tag>,
@@ -294,6 +304,8 @@ export default function InstanceList() {
         styles={{ body: { padding: 0 } }}>
         <Table dataSource={data?.items} columns={columns} rowKey="id"
           loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 1080 }}
           pagination={{ total: data?.total, pageSize: 20, showSizeChanger: false }} />
       </Card>
 

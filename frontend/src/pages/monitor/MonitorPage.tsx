@@ -60,8 +60,9 @@ export default function MonitorPage() {
         </Space>
       ),
     },
-    { title: 'Exporter 地址', dataIndex: 'exporter_url', ellipsis: true },
+    { title: 'Exporter 地址', dataIndex: 'exporter_url', width: 280, ellipsis: true },
     { title: '采集间隔', dataIndex: 'collect_interval', width: 100, render: (v: number) => `${v}s` },
+    { title: '创建人', dataIndex: 'created_by', width: 120, render: (v: string) => v || <Text type="secondary">—</Text> },
     { title: '状态', dataIndex: 'is_enabled', width: 80, render: (v: boolean) => v ? <Tag color="success">启用</Tag> : <Tag>停用</Tag> },
     {
       title: '操作', width: 120,
@@ -83,6 +84,8 @@ export default function MonitorPage() {
       </div>
       <Card style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }} styles={{ body: { padding: 0 } }}>
         <Table dataSource={data?.items} columns={columns} rowKey="id" loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 920 }}
           pagination={{ total: data?.total, pageSize: 20, showSizeChanger: false }} />
       </Card>
       <Modal title={editId ? '编辑采集配置' : '新建采集配置'} open={modalOpen}

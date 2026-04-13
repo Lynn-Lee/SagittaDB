@@ -78,7 +78,7 @@ export default function DiagnosticPage() {
       </Card>
       <Card style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }} styles={{ body: { padding: 0 } }}>
         <Table dataSource={rows} columns={columns} loading={isLoading}
-          size="small" scroll={{ x: 'max-content' }}
+          size="small" tableLayout="fixed" scroll={{ x: 'max-content' }}
           pagination={{ pageSize: 50, showSizeChanger: false }} />
       </Card>
     </div>

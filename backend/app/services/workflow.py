@@ -75,19 +75,29 @@ class WorkflowService:
     ) -> SqlWorkflow:
         # 加载实例
         inst_result = await db.execute(
-            select(Instance).where(Instance.id == data.instance_id)
+            select(Instance)
+            .options(selectinload(Instance.resource_groups))
+            .where(Instance.id == data.instance_id)
         )
         inst = inst_result.scalar_one_or_none()
         if not inst:
             raise NotFoundException(f"实例 ID={data.instance_id} 不存在")
 
-        # 获取资源组信息
-        from app.models.user import ResourceGroup
-        rg_result = await db.execute(
-            select(ResourceGroup).where(ResourceGroup.id == data.group_id)
-        )
-        rg = rg_result.scalar_one_or_none()
-        audit_auth_groups = str(data.group_id)
+        # v2-lite：资源组由“用户可访问的资源组 ∩ 实例所属资源组”自动解析
+        user_rg_ids = set(operator.get("resource_groups", []))
+        instance_rgs = [rg for rg in inst.resource_groups if rg.is_active]
+        matched_rgs = [rg for rg in instance_rgs if rg.id in user_rg_ids]
+
+        if data.group_id is not None:
+            matched_rgs = [rg for rg in matched_rgs if rg.id == data.group_id]
+            if not matched_rgs:
+                raise AppException("所选资源组不在你的实例访问范围内", code=400)
+
+        if not matched_rgs:
+            raise AppException("目标实例不在你的资源组访问范围内，无法提交工单", code=403)
+
+        rg = sorted(matched_rgs, key=lambda item: item.id)[0]
+        audit_auth_groups = str(rg.id)
 
         # 如果指定了审批流模板，生成节点快照
         nodes_snapshot: list[dict] | None = None
@@ -112,8 +122,8 @@ class WorkflowService:
         # 创建工单主记录
         workflow = SqlWorkflow(
             workflow_name=data.workflow_name,
-            group_id=data.group_id,
-            group_name=rg.group_name if rg else str(data.group_id),
+            group_id=rg.id,
+            group_name=rg.group_name,
             instance_id=data.instance_id,
             db_name=data.db_name,
             syntax_type=data.syntax_type,

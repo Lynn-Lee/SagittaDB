@@ -76,7 +76,15 @@ export default function OptimizePage() {
       </Card>
       {advices.length > 0 && (
         <Card title="优化建议" style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)', marginBottom: 16 }} styles={{ body: { padding: 0 } }}>
-          <Table dataSource={advices.map((r, i) => ({ key: i, ...r }))} columns={adviceCols} size="small" pagination={false} />
+          <Table
+            dataSource={advices.map((r, i) => ({ key: i, ...r }))}
+            columns={adviceCols}
+            size="small"
+            tableLayout="fixed"
+            scroll={{ x: 860 }}
+            pagination={false}
+            locale={{ emptyText: '暂无优化建议' }}
+          />
         </Card>
       )}
       {explainResult && (
@@ -84,7 +92,8 @@ export default function OptimizePage() {
           <Table
             dataSource={(explainResult.rows || []).map((r: any[], i: number) => ({ key: i, ...Object.fromEntries((explainResult.column_list || []).map((c: string, j: number) => [c, r[j]])) }))}
             columns={(explainResult.column_list || []).map((c: string) => ({ title: c, dataIndex: c, key: c, ellipsis: true, width: 140 }))}
-            size="small" scroll={{ x: 'max-content' }} pagination={false} />
+            size="small" tableLayout="fixed" scroll={{ x: 'max-content' }} pagination={false}
+            locale={{ emptyText: '暂无 EXPLAIN 结果' }} />
         </Card>
       )}
     </div>

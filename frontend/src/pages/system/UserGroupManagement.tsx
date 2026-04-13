@@ -140,11 +140,33 @@ const UserGroupManagement: React.FC = () => {
     value: g.id, label: g.name_cn || g.name,
   }))
 
+  const userNameMap = new Map<number, string>(
+    allUsers.map((u: any) => [u.id, u.display_name || u.username]),
+  )
+
+  const groupNameMap = new Map<number, string>(
+    (groupsData?.items ?? []).map((g: any) => [g.id, g.name_cn || g.name]),
+  )
+
   const columns = [
-    { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '组标识', dataIndex: 'name', width: 150 },
-    { title: '中文名', dataIndex: 'name_cn', width: 150 },
-    { title: '描述', dataIndex: 'description', ellipsis: true },
+    { title: 'ID', dataIndex: 'id', width: 70 },
+    { title: '组标识', dataIndex: 'name', width: 140, ellipsis: true },
+    { title: '中文名', dataIndex: 'name_cn', width: 140, ellipsis: true },
+    {
+      title: '组长',
+      dataIndex: 'leader_id',
+      width: 130,
+      render: (leaderId: number | null | undefined) =>
+        leaderId ? userNameMap.get(leaderId) || `用户#${leaderId}` : <span style={{ color: '#999' }}>未设置</span>,
+    },
+    {
+      title: '上级组',
+      dataIndex: 'parent_id',
+      width: 140,
+      render: (parentId: number | null | undefined) =>
+        parentId ? groupNameMap.get(parentId) || `用户组#${parentId}` : <span style={{ color: '#999' }}>顶级组</span>,
+    },
+    { title: '描述', dataIndex: 'description', width: 220, ellipsis: true },
     { title: '成员数', dataIndex: 'member_count', width: 90 },
     {
       title: '关联资源组', dataIndex: 'resource_group_ids', width: 260,
@@ -197,6 +219,8 @@ const UserGroupManagement: React.FC = () => {
           columns={columns}
           dataSource={filtered}
           loading={isLoading}
+          tableLayout="fixed"
+          scroll={{ x: 1180 }}
           pagination={false}
           size="middle"
         />

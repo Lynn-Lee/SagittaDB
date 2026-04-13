@@ -127,7 +127,7 @@ export default function ResourceGroupManagement() {
 
   const columns = [
     {
-      title: '资源组', key: 'name', width: 260,
+      title: '资源组', key: 'name', width: 220,
       render: (_: any, r: any) => (
         <Space direction="vertical" size={0}>
           <Text strong>{r.group_name}</Text>
@@ -136,7 +136,7 @@ export default function ResourceGroupManagement() {
       ),
     },
     {
-      title: '数据库实例', key: 'instances', width: 420,
+      title: '数据库实例', key: 'instances', width: 380,
       render: (_: any, r: any) => {
         const instances: any[] = r.instances ?? []
         if (!instances.length) return <Text type="secondary">未关联实例</Text>
@@ -159,7 +159,7 @@ export default function ResourceGroupManagement() {
       },
     },
     {
-      title: '关联用户组', dataIndex: 'user_group_count', width: 220,
+      title: '关联用户组', dataIndex: 'user_group_count', width: 260,
       render: (v: number, r: any) => (
         <Space direction="vertical" size={4}>
           <Button type="link" size="small" icon={<TeamOutlined />} onClick={() => openMembers(r)} style={{ padding: 0 }}>
@@ -180,7 +180,7 @@ export default function ResourceGroupManagement() {
       render: (v: boolean) => v ? <Tag color="success">启用</Tag> : <Tag>停用</Tag>,
     },
     {
-      title: '操作', width: 96,
+      title: '操作', width: 110,
       render: (_: any, r: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
@@ -211,6 +211,7 @@ export default function ResourceGroupManagement() {
         styles={{ body: { padding: 0 } }}>
         <Table dataSource={data?.items} columns={columns} rowKey="id" loading={isLoading}
           tableLayout="fixed"
+          scroll={{ x: 1080 }}
           pagination={{ total: data?.total, pageSize: 20, showSizeChanger: false }} />
       </Card>
 

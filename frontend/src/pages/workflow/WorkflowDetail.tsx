@@ -43,9 +43,9 @@ export default function WorkflowDetail() {
   if (isLoading || !wf) return <div style={{ padding: 40 }}>加载中...</div>
 
   const logColumns = [
-    { title: '操作人', dataIndex: 'operator', width: 100 },
-    { title: '操作', dataIndex: 'operation_type', width: 100 },
-    { title: '备注', dataIndex: 'remark', ellipsis: true },
+    { title: '操作人', dataIndex: 'operator', width: 120 },
+    { title: '操作', dataIndex: 'operation_type', width: 120 },
+    { title: '备注', dataIndex: 'remark', width: 320, ellipsis: true },
     { title: '时间', dataIndex: 'created_at', width: 180, render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-' },
   ]
 
@@ -116,7 +116,7 @@ export default function WorkflowDetail() {
         <Card title="审批日志" style={{ borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}
           styles={{ body: { padding: 0 } }}>
           <Table dataSource={wf.audit_logs} columns={logColumns} rowKey={(r, i) => String(i)}
-            size="small" pagination={false} />
+            size="small" tableLayout="fixed" scroll={{ x: 760 }} pagination={false} />
         </Card>
       )}
     </div>
