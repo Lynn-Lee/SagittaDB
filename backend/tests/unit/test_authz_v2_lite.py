@@ -3,15 +3,18 @@ v2-lite 权限体系单元测试。
 """
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
 
+from app.core.exceptions import AppException
 from app.schemas.approval_flow import ApprovalFlowNodeCreate
 from app.schemas.query import PrivApplyRequest
 from app.services.monitor import MonitorService
 from app.services.query_priv import QueryPrivService
 from app.services.role import BUILTIN_ROLES
+from app.services.user import UserService
 
 
 def _role_permissions(name: str) -> set[str]:
@@ -108,3 +111,55 @@ class TestQueryPrivilegeHelpers:
 
     def test_database_scope_normalizes_to_database_priv(self):
         assert QueryPrivService._normalize_scope_type("database", "") == ("database", 1)
+
+
+class TestManagerResolution:
+    @pytest.mark.asyncio
+    async def test_resolve_manager_prefers_username(self):
+        db = AsyncMock()
+        username_result = MagicMock()
+        username_result.scalar_one_or_none.return_value = 52
+        db.execute = AsyncMock(return_value=username_result)
+
+        manager_id = await UserService._resolve_manager_id(db, "leader01", "")
+
+        assert manager_id == 52
+
+    @pytest.mark.asyncio
+    async def test_resolve_manager_falls_back_to_unique_display_name(self):
+        db = AsyncMock()
+        username_result = MagicMock()
+        username_result.scalar_one_or_none.return_value = None
+        display_result = MagicMock()
+        display_result.scalars.return_value.all.return_value = [88]
+        db.execute = AsyncMock(side_effect=[username_result, display_result])
+
+        manager_id = await UserService._resolve_manager_id(db, "missing-user", "张经理")
+
+        assert manager_id == 88
+
+    @pytest.mark.asyncio
+    async def test_resolve_manager_rejects_duplicate_display_name(self):
+        db = AsyncMock()
+        display_result = MagicMock()
+        display_result.scalars.return_value.all.return_value = [7, 9]
+        db.execute = AsyncMock(return_value=display_result)
+
+        with pytest.raises(AppException) as exc_info:
+            await UserService._resolve_manager_id(db, "", "同名经理")
+
+        assert "匹配到多个用户" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_resolve_manager_requires_valid_username_or_display_name(self):
+        db = AsyncMock()
+        username_result = MagicMock()
+        username_result.scalar_one_or_none.return_value = None
+        display_result = MagicMock()
+        display_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(side_effect=[username_result, display_result])
+
+        with pytest.raises(AppException) as exc_info:
+            await UserService._resolve_manager_id(db, "ghost", "未知主管")
+
+        assert "直属上级不存在" in exc_info.value.message

@@ -2,11 +2,14 @@
 工单服务单元测试（Pack G）。
 覆盖状态流转、格式化、SQL 校验逻辑（通过 mock 避免真实 DB 依赖）。
 """
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.exceptions import AppException
 from app.models.workflow import AuditStatus, WorkflowStatus, WorkflowType
+from app.schemas.workflow import WorkflowCreateRequest
 from app.services.workflow import WorkflowService
 
 
@@ -204,3 +207,88 @@ class TestPendingForMe:
         )
         assert isinstance(total, int)
         assert isinstance(items, list)
+
+
+class TestCreateWorkflow:
+    def _request(self, **overrides):
+        payload = {
+            "workflow_name": "站点库变更",
+            "group_id": None,
+            "instance_id": 100,
+            "db_name": "site_db",
+            "sql_content": "UPDATE orders SET status = 1 WHERE id = 1;",
+            "syntax_type": 2,
+            "is_backup": True,
+            "flow_id": None,
+        }
+        payload.update(overrides)
+        return WorkflowCreateRequest(**payload)
+
+    @pytest.mark.asyncio
+    async def test_create_uses_intersection_resource_group(self):
+        db = AsyncMock()
+        instance = SimpleNamespace(
+            resource_groups=[
+                SimpleNamespace(id=2, group_name="研发资源组", is_active=True),
+                SimpleNamespace(id=9, group_name="停用资源组", is_active=False),
+            ]
+        )
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = instance
+        db.execute = AsyncMock(return_value=result)
+        db.flush = AsyncMock()
+        db.add = MagicMock()
+
+        review_set = SimpleNamespace(rows=[], error_count=0, error=False)
+        mock_engine = MagicMock()
+        mock_engine.execute_check = AsyncMock(return_value=review_set)
+        audit_service = MagicMock()
+        audit_service.create_audit = AsyncMock()
+
+        operator = {"id": 7, "username": "dev1", "display_name": "研发一号", "resource_groups": [2, 5]}
+
+        with patch("app.services.workflow.get_engine", return_value=mock_engine), patch(
+            "app.services.workflow.AuditService", return_value=audit_service
+        ):
+            workflow = await WorkflowService.create(db, self._request(), operator)
+
+        assert workflow.group_id == 2
+        assert workflow.group_name == "研发资源组"
+        assert workflow.audit_auth_groups == "2"
+        audit_service.create_audit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_create_rejects_explicit_group_outside_scope(self):
+        db = AsyncMock()
+        instance = SimpleNamespace(
+            resource_groups=[SimpleNamespace(id=2, group_name="研发资源组", is_active=True)]
+        )
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = instance
+        db.execute = AsyncMock(return_value=result)
+
+        operator = {"id": 7, "username": "dev1", "display_name": "研发一号", "resource_groups": [2]}
+
+        with pytest.raises(AppException) as exc_info:
+            await WorkflowService.create(db, self._request(group_id=8), operator)
+
+        assert exc_info.value.code == 400
+        assert "所选资源组不在你的实例访问范围内" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_create_rejects_instance_outside_resource_scope(self):
+        db = AsyncMock()
+        instance = SimpleNamespace(
+            resource_groups=[SimpleNamespace(id=9, group_name="DBA资源组", is_active=True)]
+        )
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = instance
+        db.execute = AsyncMock(return_value=result)
+
+        operator = {"id": 7, "username": "dev1", "display_name": "研发一号", "resource_groups": [2]}
+
+        with pytest.raises(AppException) as exc_info:
+            await WorkflowService.create(db, self._request(), operator)
+
+        assert exc_info.value.code == 403
+        assert "目标实例不在你的资源组访问范围内" in exc_info.value.message
