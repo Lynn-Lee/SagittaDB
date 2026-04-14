@@ -14,6 +14,7 @@ import sqlglot.expressions as exp
 
 from app.core.security import decrypt_field
 from app.engines.models import ResultSet, ReviewSet, SqlItem
+from app.engines.utils import normalize_engine_host, sanitize_sqlglot_error
 
 if TYPE_CHECKING:
     from app.models.instance import Instance
@@ -27,7 +28,7 @@ class PgSQLEngine:
 
     def __init__(self, instance: Instance) -> None:
         self.instance = instance
-        self._host = instance.host
+        self._host = normalize_engine_host(instance.host)
         self._port = instance.port
         self._user = decrypt_field(instance.user)
         self._password = decrypt_field(instance.password)
@@ -132,7 +133,7 @@ class PgSQLEngine:
                     break
         except sqlglot.errors.ParseError as e:
             result["syntax_error"] = True
-            result["msg"] = f"SQL 语法错误：{e}"
+            result["msg"] = f"SQL 语法错误：{sanitize_sqlglot_error(str(e))}"
         return result
 
     def filter_sql(self, sql: str, limit_num: int) -> str:

@@ -180,6 +180,11 @@ class InstanceService:
     @staticmethod
     async def delete(db: AsyncSession, instance_id: int) -> None:
         inst = await InstanceService._load_instance(db, instance_id)
+        if inst.resource_groups:
+            rg_names = "、".join(rg.group_name_cn or rg.group_name for rg in inst.resource_groups)
+            raise ConflictException(
+                f"实例已被资源组 {rg_names} 关联，请先取消关联后再删除"
+            )
         # 软删除（标记为 inactive）
         inst.is_active = False
         await db.commit()

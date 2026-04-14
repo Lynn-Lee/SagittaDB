@@ -185,19 +185,10 @@ class InstanceDatabaseService:
         added = 0
         skipped = 0
         for db_name in db_list:
-            if not db_name or db_name in (
-                "information_schema",
-                "performance_schema",
-                "mysql",
-                "sys",
-                "pg_catalog",
-                "pg_toast",
-            ):
-                skipped += 1
+            if not db_name:
                 continue
             if db_name in existing_names:
-                # 更新同步时间
-                await db.execute(
+                existing_result = await db.execute(
                     select(InstanceDatabase).where(
                         and_(
                             InstanceDatabase.instance_id == instance_id,
@@ -205,6 +196,13 @@ class InstanceDatabaseService:
                         )
                     )
                 )
+                existing = existing_result.scalar_one_or_none()
+                if existing:
+                    existing.sync_at = now
+                    # 兼容旧版本曾将部分库/Schema 自动置为“系统库（默认禁用）”
+                    if existing.remark == "系统库（默认禁用）":
+                        existing.remark = ""
+                        existing.is_active = True
                 skipped += 1
             else:
                 db.add(

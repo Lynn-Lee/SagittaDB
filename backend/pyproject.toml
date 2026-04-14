@@ -45,6 +45,7 @@ dependencies = [
     "motor~=3.3",
     "aioredis~=2.0",
     "clickhouse-driver~=0.2.7",
+    "oracledb~=2.2",
     "elasticsearch[async]~=8.12",
     "cassandra-driver~=3.29",
     # OpenTelemetry 可观测性
@@ -69,7 +70,7 @@ dependencies = [
 
 [project.optional-dependencies]
 oracle = [
-    "cx_Oracle>=8.3.0",            # 需本地安装 Oracle Instant Client
+    "oracledb~=2.2",
 ]
 dev = [
     "pytest>=8.0.0",

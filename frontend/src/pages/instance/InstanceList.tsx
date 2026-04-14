@@ -75,10 +75,15 @@ function InstanceDatabasePanel({ instance }: { instance: InstanceItem }) {
 
   const columns: ColumnsType<any> = [
     {
-      title: dbLabel + '名称', dataIndex: 'db_name', width: 180,
-      render: (v: string) => <Tag color="blue" style={{ fontFamily: 'monospace' }}>{v}</Tag>,
+      title: dbLabel + '名称', dataIndex: 'db_name', width: 290,
+      render: (v: string, r: any) => (
+        <Space size={6} style={{ display: 'inline-flex', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+          <Tag color="blue" style={{ fontFamily: 'monospace' }}>{v}</Tag>
+          {!r.is_active && <Tag color="default">已禁用</Tag>}
+        </Space>
+      ),
     },
-    { title: '备注', dataIndex: 'remark', width: 220, ellipsis: true,
+    { title: '备注', dataIndex: 'remark', width: 160, ellipsis: true,
       render: (v: string) => v || <Text type="secondary">—</Text> },
     {
       title: '状态', dataIndex: 'is_active', width: 90,
@@ -181,6 +186,7 @@ export default function InstanceList() {
   const [testResults, setTestResults] = useState<Record<number, any>>({})
   const [form] = Form.useForm()
   const [msgApi, msgCtx] = message.useMessage()
+  const selectedDbType = Form.useWatch('db_type', form)
 
   const { data, isLoading } = useQuery({
     queryKey: ['instances', search],
@@ -198,7 +204,8 @@ export default function InstanceList() {
   })
   const deleteMut = useMutation({
     mutationFn: instanceApi.delete,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['instances'] }); msgApi.success('实例已停用') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['instances'] }); msgApi.success('实例已删除') },
+    onError: (e: any) => msgApi.error(e.response?.data?.msg || e.response?.data?.detail || '删除失败'),
   })
 
   const handleTest = async (id: number) => {
@@ -243,7 +250,7 @@ export default function InstanceList() {
       title: '连接用户', dataIndex: 'user', width: 120,
       render: (v: string) => v || <Text type="secondary">—</Text>,
     },
-    { title: '默认库', dataIndex: 'db_name', width: 110,
+    { title: '默认连接', dataIndex: 'db_name', width: 130,
       render: (v: string) => v || <Text type="secondary">—</Text> },
     {
       title: '备注', dataIndex: 'remark', width: 220, ellipsis: true,
@@ -278,7 +285,7 @@ export default function InstanceList() {
             <Button size="small" icon={<DatabaseOutlined />} onClick={() => openDbManage(r)} />
           </Tooltip>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-          <Popconfirm title="确认停用此实例？" onConfirm={() => deleteMut.mutate(r.id)}>
+          <Popconfirm title="确认删除此实例？" onConfirm={() => deleteMut.mutate(r.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -348,8 +355,32 @@ export default function InstanceList() {
                 placeholder={editRecord ? '不修改请留空' : ''} />
             </Form.Item>
           </Space>
-          <Form.Item name="db_name" label="默认连接库（可选）">
-            <Input placeholder="部分数据库需要指定，如 postgres" />
+          <Form.Item
+            name="db_name"
+            label={
+              selectedDbType === 'oracle'
+                ? 'Service Name / PDB（可选）'
+                : '默认连接库（可选）'
+            }
+            extra={
+              selectedDbType === 'oracle'
+                ? 'Oracle 这里填写服务名或 PDB，如 FREEPDB1；实例下一级同步的是 Schema。'
+                : selectedDbType === 'pgsql'
+                  ? 'PostgreSQL 可填写默认连接数据库，如 postgres 或 testdb。'
+                  : selectedDbType === 'mysql'
+                    ? 'MySQL 一般可留空；如果需要默认连接某个库，也可以填写。'
+                    : undefined
+            }
+          >
+            <Input
+              placeholder={
+                selectedDbType === 'oracle'
+                  ? '如 FREEPDB1'
+                  : selectedDbType === 'pgsql'
+                    ? '如 postgres'
+                    : '部分数据库需要指定，如 postgres'
+              }
+            />
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input placeholder="用途说明" />

@@ -16,6 +16,7 @@ export default function ResourceGroupManagement() {
   const [modalOpen, setModalOpen] = useState(false)
   const [memberModalOpen, setMemberModalOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
+  const [editRecord, setEditRecord] = useState<any>(null)
   const [currentRg, setCurrentRg] = useState<any>(null)
   const [search, setSearch] = useState('')
   const [ugTargetKeys, setUgTargetKeys] = useState<string[]>([])
@@ -73,12 +74,14 @@ export default function ResourceGroupManagement() {
 
   const openCreate = () => {
     setEditId(null)
+    setEditRecord(null)
     form.resetFields()
     form.setFieldsValue({ instance_ids: [], user_group_ids: [] })
     setModalOpen(true)
   }
   const openEdit = (r: any) => {
     setEditId(r.id)
+    setEditRecord(r)
     form.setFieldsValue({
       ...r,
       instance_ids: (r.instances ?? []).map((inst: any) => inst.id),
@@ -124,6 +127,18 @@ export default function ResourceGroupManagement() {
     clickhouse: '#FFCC00', mssql: '#CC2927', elasticsearch: '#FEC514',
     cassandra: '#1287B1', doris: '#4A90D9', tidb: '#E2231A',
   }
+
+  const mergedInstanceOptions = (() => {
+    const activeInstances = instanceData?.items ?? []
+    const currentInstances = editRecord?.instances ?? []
+    const merged = new Map<number, any>()
+    for (const inst of activeInstances) merged.set(inst.id, inst)
+    for (const inst of currentInstances) merged.set(inst.id, inst)
+    return Array.from(merged.values()).map((inst: any) => ({
+      value: inst.id,
+      label: `${inst.instance_name} (${formatDbTypeLabel(inst.db_type)} · ${inst.host}:${inst.port})${inst.is_active === false ? '（已停用）' : ''}`,
+    }))
+  })()
 
   const columns = [
     {
@@ -217,7 +232,7 @@ export default function ResourceGroupManagement() {
 
       {/* 新建/编辑资源组 Modal */}
       <Modal title={editId ? '编辑资源组' : '新建资源组'} open={modalOpen}
-        onOk={handleSubmit} onCancel={() => setModalOpen(false)}
+        onOk={handleSubmit} onCancel={() => { setModalOpen(false); setEditRecord(null) }}
         confirmLoading={createMut.isPending || updateMut.isPending}>
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="group_name" label="资源组标识（英文）"
@@ -237,10 +252,7 @@ export default function ResourceGroupManagement() {
               placeholder="选择要纳入资源组的数据库实例"
               optionFilterProp="label"
               showSearch
-              options={(instanceData?.items ?? []).map((inst: any) => ({
-                value: inst.id,
-                label: `${inst.instance_name} (${formatDbTypeLabel(inst.db_type)} · ${inst.host}:${inst.port})`,
-              }))}
+              options={mergedInstanceOptions}
             />
           </Form.Item>
           <Form.Item

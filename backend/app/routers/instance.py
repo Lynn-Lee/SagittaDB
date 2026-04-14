@@ -109,7 +109,7 @@ async def update_instance(
 
 @router.delete(
     "/{instance_id}/",
-    summary="删除（停用）实例",
+    summary="删除实例",
     dependencies=[Depends(require_perm("instance_manage"))],
 )
 async def delete_instance(
@@ -119,7 +119,7 @@ async def delete_instance(
 ):
     await _ensure_instance_access(db, user, instance_id)
     await InstanceService.delete(db, instance_id)
-    return {"status": 0, "msg": "实例已停用"}
+    return {"status": 0, "msg": "实例已删除"}
 
 
 @router.post("/{instance_id}/test/", summary="测试连接")
