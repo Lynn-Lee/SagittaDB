@@ -306,6 +306,71 @@ class TestRelationalDataDictConstraints:
         assert result[0]["column_names"] == "EMAIL"
 
     @pytest.mark.asyncio
+    async def test_oracle_system_not_null_checks_are_hidden(self, monkeypatch: pytest.MonkeyPatch):
+        engine = FakeEngine(
+            constraints=ResultSet(
+                rows=[
+                    {
+                        "constraint_name": "PK_HS_BASIC_SITE",
+                        "constraint_type": "PRIMARY KEY",
+                        "column_names": "SITE_ID",
+                        "referenced_table_name": "",
+                        "referenced_column_names": "",
+                        "check_clause": "",
+                    },
+                    {
+                        "constraint_name": "SYS_C0039648",
+                        "constraint_type": "CHECK",
+                        "column_names": "BL_FINANCE",
+                        "referenced_table_name": "",
+                        "referenced_column_names": "",
+                        "check_clause": '"BL_FINANCE" IS NOT NULL',
+                    },
+                    {
+                        "constraint_name": "CK_SITE_STATUS",
+                        "constraint_type": "CHECK",
+                        "column_names": "SITE_STATUS",
+                        "referenced_table_name": "",
+                        "referenced_column_names": "",
+                        "check_clause": '"SITE_STATUS" IN (0, 1)',
+                    },
+                ]
+            )
+        )
+        _patch_engine(monkeypatch, engine)
+
+        result = await InstanceService.get_constraints(None, 1, "ANE", "HS_BASIC_SITE")
+
+        assert [item["constraint_name"] for item in result] == [
+            "PK_HS_BASIC_SITE",
+            "CK_SITE_STATUS",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_oracle_blank_system_single_column_checks_are_hidden(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        engine = FakeEngine(
+            constraints=ResultSet(
+                rows=[
+                    {
+                        "constraint_name": "SYS_C0039650",
+                        "constraint_type": "CHECK",
+                        "column_names": "COD_LIMIT_AMOUNT",
+                        "referenced_table_name": "",
+                        "referenced_column_names": "",
+                        "check_clause": "",
+                    }
+                ]
+            )
+        )
+        _patch_engine(monkeypatch, engine)
+
+        result = await InstanceService.get_constraints(None, 1, "ANE", "HS_BASIC_SITE")
+
+        assert result == []
+
+    @pytest.mark.asyncio
     async def test_mssql_constraints_are_normalized(self, monkeypatch: pytest.MonkeyPatch):
         engine = FakeEngine(
             constraints=ResultSet(
